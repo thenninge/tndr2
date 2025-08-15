@@ -604,7 +604,7 @@ function PostvaerTab() {
               </tr>
             </thead>
             <tbody>
-              {hourly.map((h: any) => (
+              {hourly.map((h: HourlyForecast) => (
                 <tr key={h.time}>
                   <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</td>
                   <td style={{ padding: 4 }}>{h.temp}°C</td>
@@ -666,7 +666,7 @@ function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: (p: Post[]
   function handleDelete(idx:number) {
     if (window.confirm('Vil du slette denne posten?')) setPosts(p=>p.filter((_,i)=>i!==idx));
   }
-  function handleAdd(e:any) {
+  function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!newName.trim() || isNaN(Number(newLat)) || isNaN(Number(newLng)) || isNaN(Number(newNr)) || !newOmrade.trim()) return;
     setPosts(p=>[...p,{nr:Number(newNr),name:newName.trim(),lat:Number(newLat),lng:Number(newLng),omrade:newOmrade.trim()}]);
