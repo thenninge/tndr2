@@ -255,7 +255,7 @@ function DgLogger({ name, lat, lng, onDelete }: { name: string; lat: number; lng
   );
 }
 
-function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: any[]; trekkData: any[]; setTrekkData: (d: any[]) => void }) {
+function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekkData: TrekkData[]; setTrekkData: (d: TrekkData[]) => void }) {
   const [selected, setSelected] = useState(() => ELGPOSTER.map(() => false));
   const [remaining, setRemaining] = useState(() => ELGPOSTER.map((_, i) => i));
   const [spinning, setSpinning] = useState(false);
@@ -268,7 +268,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: any[]; trekkD
   const [sortBy, setSortBy] = useState('alfabetisk');
   const [showAuto, setShowAuto] = useState(false);
   const [selectedJegere, setSelectedJegere] = useState(() => ELGJEGERE.map(() => true));
-  const [autoResult, setAutoResult] = useState<{ post: any; jeger: any }[]>([]);
+  const [autoResult, setAutoResult] = useState<{ post: Post; jeger: Jeger }[]>([]);
 
   // Sorter ELGPOSTER alfabetisk for visning
   const sortedIdx = ELGPOSTER
@@ -321,7 +321,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: any[]; trekkD
   function handleTrekkAuto() {
     const valgteJegere = ELGJEGERE.filter((_, i) => selectedJegere[i]);
     const ledigePoster = [...posts];
-    const trekk: { post: any; jeger: any }[] = [];
+    const trekk: { post: Post; jeger: Jeger }[] = [];
     valgteJegere.forEach(jeger => {
       if (ledigePoster.length === 0) return;
       const idx = Math.floor(Math.random() * ledigePoster.length);
@@ -406,7 +406,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: any[]; trekkD
                 {posts.map((p, idx) => (
                   <li key={p.name} style={{ marginBottom: 4 }}>
                     <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                      <input type="checkbox" checked={selectedPoster[idx]} onChange={() => handleTogglePost(idx)} style={{ marginRight: 7 }} />
+                      <input type="checkbox" checked={selected[idx]} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
                       {p.name}
                     </label>
                   </li>
@@ -414,11 +414,11 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: any[]; trekkD
               </ul>
               <button
                 onClick={handleTrekkAuto}
-                disabled={ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selectedPoster[i]).length}
+                disabled={ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selected[i]).length}
                 style={{ padding: '8px 18px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginTop: 8 }}>
                 Trekk auto
               </button>
-              {ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selectedPoster[i]).length && (
+              {ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selected[i]).length && (
                 <div style={{ color: '#c33', marginTop: 6 }}>Du må velge like mange jegere og poster!</div>
               )}
               {autoResult.length > 0 && (
@@ -472,7 +472,7 @@ function PostvaerTab() {
   const [timeOption, setTimeOption] = useState('6timer');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [weatherData, setWeatherData] = useState<any[]>([]); // [{post, hourly:[], daily:[]}, ...]
+  const [weatherData, setWeatherData] = useState<WeatherData[]>([]); // [{post, hourly:[], daily:[]}, ...]
   const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy] = useState('alfabetisk');
 
@@ -622,7 +622,7 @@ function PostvaerTab() {
   );
 }
 
-function ElgposterTab({ posts, setPosts }: { posts: any[]; setPosts: (p: any[]) => void }) {
+function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: (p: Post[]) => void }) {
   const [sortBy, setSortBy] = useState('omrade');
   const [showAdd, setShowAdd] = useState(false);
   const [newNr, setNewNr] = useState('');
@@ -644,7 +644,7 @@ function ElgposterTab({ posts, setPosts }: { posts: any[]; setPosts: (p: any[]) 
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
   // Område-sortering
-  let sortedPosts: any[] = [];
+  let sortedPosts: Post[] = [];
   if (sortBy === 'omrade') {
     omradeOrder.forEach(omr => {
       const group = posts.filter(p => p.omrade === omr).sort((a,b)=>(a.nr||0)-(b.nr||0));
@@ -728,7 +728,7 @@ function ElgposterTab({ posts, setPosts }: { posts: any[]; setPosts: (p: any[]) 
 }
 
 // DagensPosterTab må være definert før Home bruker den
-function DagensPosterTab({ posts, trekkData }: { posts: any[]; trekkData: { postIdx: number; jeger: string }[] }) {
+function DagensPosterTab({ posts, trekkData }: { posts: Post[]; trekkData: TrekkData[] }) {
   return (
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Dagens poster</h2>
@@ -763,7 +763,7 @@ function DagensPosterTab({ posts, trekkData }: { posts: any[]; trekkData: { post
 export default function Home() {
   const [showMap, setShowMap] = useState(false);
   const [addPostMode, setAddPostMode] = useState(false);
-  const [posts, setPosts] = useState<{ name: string; lat: number; lng: number }[]>(ELGPOSTER);
+  const [posts, setPosts] = useState<Post[]>(ELGPOSTER);
   const [selectedPosts, setSelectedPosts] = useState<number[]>([]); // indexer til posts
   const [expanderOpen, setExpanderOpen] = useState(false);
   const [hourly, setHourly] = useState<HourlyForecast[]>([]);
@@ -789,7 +789,7 @@ export default function Home() {
   // Delt elgpost-liste for hele appen
   const [elgposter, setElgposter] = useState(() => [...ELGPOSTER]);
   // Delt trekkData-state for trukne poster
-  const [trekkData, setTrekkData] = useState<{ postIdx: number; jeger: string }[]>([]);
+  const [trekkData, setTrekkData] = useState<TrekkData[]>([]);
 
   function handlePostAdded() {
     setShowMap(false);
