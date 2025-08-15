@@ -543,7 +543,7 @@ function PostvaerTab() {
         temperature: data.hourly.temperature_2m[idx],
         weatherCode: data.hourly.weathercode[idx],
         precipitation: data.hourly.precipitation[idx],
-      })).filter(h => {
+      })).filter((h: HourData) => {
         const ht = new Date(h.time);
         return ht >= from && ht <= to;
       });
