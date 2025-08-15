@@ -650,8 +650,8 @@ function PostvaerTab() {
                 <tr key={h.time}>
                   <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</td>
                   <td style={{ padding: 4 }}>{h.temp}°C</td>
-                  <td style={{ padding: 4 }}>{h.precipitation}</td>
-                  <td style={{ padding: 4 }}><WindArrow deg={h.weatherCode} /> {h.weatherCode}° ({windDirectionText(h.weatherCode)})</td>
+                  <td style={{ padding: 4 }}>{h.windSpeed}</td>
+                  <td style={{ padding: 4 }}><WindArrow deg={h.windDir} /> {h.windDir}° ({windDirectionText(h.windDir)})</td>
                   <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
                   <td style={{ padding: 4 }}>{h.precipitation}</td>
                 </tr>
