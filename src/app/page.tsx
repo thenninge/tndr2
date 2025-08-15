@@ -757,35 +757,76 @@ function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: React.Disp
   );
 }
 
-// DagensPosterTab må være definert før Home bruker den
-function DagensPosterTab({ posts, trekkData }: { posts: Post[]; trekkData: TrekkData[] }) {
+// Ny DagensPosterTab:
+import { useState, useEffect } from "react";
+import type { Elgpost } from "./types";
+
+function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: string; callsign: string }[] }) {
+  const [fordeling, setFordeling] = useState<{ postIdx: number; jeger: string }[]>([]);
+  const [edit, setEdit] = useState<{ [postIdx: number]: string }>({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Hent dagens fordeling
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/dagensposter")
+      .then(r => r.json())
+      .then(data => {
+        setFordeling(Array.isArray(data) ? data : []);
+        setEdit({});
+        setLoading(false);
+      });
+  }, []);
+
+  // Lagre dagens fordeling
+  async function save() {
+    setSaving(true);
+    const ny = posts.map((p, idx) => ({ postIdx: idx, jeger: edit[idx] ?? (fordeling.find(f => f.postIdx === idx)?.jeger || "") }));
+    await fetch("/api/dagensposter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ny),
+    });
+    setFordeling(ny);
+    setEdit({});
+    setSaving(false);
+  }
+
   return (
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Dagens poster</h2>
-      {trekkData.length === 0 ? (
-        <div style={{ color: '#aaa' }}>Ingen poster tildelt i dag.</div>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 19 }}>
+      {loading ? <div>Laster...</div> : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 18 }}>
           <thead>
             <tr>
               <th style={{ textAlign: 'left', padding: 4 }}>Post</th>
+              <th style={{ textAlign: 'left', padding: 4 }}>Jeger</th>
               <th style={{ textAlign: 'left', padding: 4 }}>Callsign</th>
             </tr>
           </thead>
           <tbody>
-            {trekkData.map((d, i) => {
-              const post = posts[d.postIdx];
-              const jeger = ELGJEGERE.find(j => j.navn === d.jeger);
+            {posts.map((post, idx) => {
+              const valgt = edit[idx] ?? (fordeling.find(f => f.postIdx === idx)?.jeger || "");
+              const jegerObj = jegere.find(j => j.navn === valgt);
               return (
-                <tr key={i}>
+                <tr key={post.nr+post.name}>
                   <td style={{ padding: 4, fontWeight: 700 }}>{post.name}</td>
-                  <td style={{ padding: 4, color: '#4a90e2', fontWeight: 600 }}>{jeger ? jeger.callsign : d.jeger}</td>
+                  <td style={{ padding: 4 }}>
+                    <select value={valgt} onChange={e => setEdit(ed => ({ ...ed, [idx]: e.target.value }))} style={{ fontSize: 16, padding: 4, borderRadius: 6 }}>
+                      <option value="">Velg jeger</option>
+                      {jegere.map(j => <option key={j.navn} value={j.navn}>{j.navn}</option>)}
+                    </select>
+                  </td>
+                  <td style={{ padding: 4, color: '#4a90e2', fontWeight: 600 }}>{jegerObj?.callsign || ''}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       )}
+      <button onClick={save} disabled={saving} style={{ marginTop: 16, padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Lagre dagens poster</button>
+      <div style={{ marginTop: 18, color: '#888', fontSize: 15 }}>Alle på jaktlaget ser denne listen.</div>
     </section>
   );
 }
@@ -1033,7 +1074,7 @@ export default function Home() {
         <TrekkDinPost posts={elgposter} trekkData={trekkData} setTrekkData={setTrekkData} />
       )}
       {activeTab === "Dagens poster" && (
-        <DagensPosterTab posts={elgposter} trekkData={trekkData} />
+        <DagensPosterTab posts={elgposter} jegere={ELGJEGERE} />
       )}
       {activeTab === "Mørning" && (
         <section>
