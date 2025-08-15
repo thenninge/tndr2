@@ -289,7 +289,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
     setSpinning(true);
     setShowResult(false);
     let ticks = 0;
-    let spinInterval = setInterval(() => {
+    const spinInterval = setInterval(() => {
       const r = available[Math.floor(Math.random() * available.length)];
       setSpinName(ELGPOSTER[r].name);
       ticks++;
@@ -529,7 +529,7 @@ function PostvaerTab() {
   const numSelected = selectedPosts.filter(Boolean).length;
 
   // Sorteringslogikk
-  let sortedWeatherData = [...weatherData];
+  const sortedWeatherData = [...weatherData];
   if (sortBy === 'nord-sor') {
     sortedWeatherData.sort((a, b) => b.post.lat - a.post.lat);
   } else if (sortBy === 'sor-nord') {
