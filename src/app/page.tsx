@@ -5,6 +5,23 @@ import { useRef } from "react";
 import { ELGPOSTER } from "./elgposter";
 import { ELGJEGERE } from "./elgjegere";
 
+// Type-definisjoner for hele appen
+export type Post = {
+  nr: number;
+  name: string;
+  lat: number;
+  lng: number;
+  omrade: string;
+};
+export type TrekkData = {
+  postIdx: number;
+  jeger: string;
+};
+export type Jeger = {
+  navn: string;
+  callsign: string;
+};
+
 // Funksjon for å oversette weathercode til ikon/tekst
 function weatherIcon(code: number) {
   if (code === 0) return "☀️"; // Clear
