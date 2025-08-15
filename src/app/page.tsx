@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useRef } from "react";
 import { ELGPOSTER } from "./elgposter";
 import { ELGJEGERE } from "./elgjegere";
+import type { Elgpost } from "./types";
 
 // Type-definisjoner for hele appen
 export type Post = {
