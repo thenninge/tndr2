@@ -693,7 +693,7 @@ function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: (p: Post[]
     else if (sortBy === 'hytta') sortedPosts.sort((a,b)=>distFromHytta(a)-distFromHytta(b));
   }
   function handleDelete(idx:number) {
-    if (window.confirm('Vil du slette denne posten?')) setPosts((p: Post[]) => p.filter((_,i)=>i!==idx));
+    if (window.confirm('Vil du slette denne posten?')) setPosts(p => p.filter((_,i)=>i!==idx));
   }
   function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
