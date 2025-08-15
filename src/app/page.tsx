@@ -758,7 +758,6 @@ function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: React.Disp
 }
 
 // Ny DagensPosterTab:
-import { useState, useEffect } from "react";
 import type { Elgpost } from "./types";
 
 function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: string; callsign: string }[] }) {
