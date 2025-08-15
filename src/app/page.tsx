@@ -22,6 +22,11 @@ export type Jeger = {
   callsign: string;
 };
 
+export type WeatherData = {
+  post: Post;
+  hourly: HourlyForecast[];
+};
+
 // Funksjon for å oversette weathercode til ikon/tekst
 function weatherIcon(code: number) {
   if (code === 0) return "☀️"; // Clear
