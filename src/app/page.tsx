@@ -44,7 +44,7 @@ function weatherIcon(code: number) {
 
 const MapSection = dynamic(() => import("./MapSection"), { ssr: false });
 
-const DEFAULT_POSITION = [60.72491439929582, 9.036524928167466];
+const DEFAULT_POSITION: [number, number] = [60.72491439929582, 9.036524928167466];
 
 function windDirectionText(deg: number) {
   if (deg >= 337.5 || deg < 22.5) return "N";

@@ -4,12 +4,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useState, useEffect } from "react";
 import { useMapEvent, useMap } from "react-leaflet";
-
-interface Elgpost {
-  name: string;
-  lat: number;
-  lng: number;
-}
+import type { Elgpost } from "./page";
 
 interface MapSectionProps {
   position: [number, number];
