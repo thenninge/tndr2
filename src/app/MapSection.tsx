@@ -2,7 +2,8 @@
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useMapEvent, useMap } from "react-leaflet";
 
 interface Elgpost {
   name: string;
@@ -18,6 +19,19 @@ interface MapSectionProps {
 
 export default function MapSection({ position, posts }: MapSectionProps) {
   const [zoom, setZoom] = useState(16);
+
+  // Subkomponent for å lytte på zoom-endringer
+  function ZoomListener() {
+    const map = useMap();
+    useEffect(() => {
+      setZoom(map.getZoom());
+    }, [map]);
+    useMapEvent('zoomend', () => {
+      setZoom(map.getZoom());
+    });
+    return null;
+  }
+
   // Dynamisk ikonstørrelse basert på zoom (mellom 10 og 22 px)
   function getDotIcon(color: string) {
     const size = Math.max(10, Math.min(22, zoom * 1.2));
@@ -35,12 +49,8 @@ export default function MapSection({ position, posts }: MapSectionProps) {
         center={position}
         zoom={zoom}
         style={{ height: 500, width: "100%" }}
-        whenReady={(event) => {
-          const map = event.target;
-          map.on("zoomend", () => setZoom(map.getZoom()));
-          setZoom(map.getZoom());
-        }}
       >
+        <ZoomListener />
         <TileLayer
           attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
