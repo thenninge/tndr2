@@ -35,7 +35,8 @@ export default function MapSection({ position, posts }: MapSectionProps) {
         center={position}
         zoom={zoom}
         style={{ height: 500, width: "100%" }}
-        whenCreated={(map) => {
+        whenReady={(event) => {
+          const map = event.target;
           map.on("zoomend", () => setZoom(map.getZoom()));
           setZoom(map.getZoom());
         }}
