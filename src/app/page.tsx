@@ -568,6 +568,17 @@ function PostvaerTab() {
     sortedWeatherData.sort((a, b) => b.post.lng - a.post.lng);
   } else if (sortBy === 'vest-ost') {
     sortedWeatherData.sort((a, b) => a.post.lng - b.post.lng);
+  } else if (sortBy === 'omrade') {
+    const omradeOrder = ["Strupen", "Høgemyr/GN", "Marstein", "Søndre", "Røytjern"];
+    sortedWeatherData.sort((a, b) => {
+      const areaA = omradeOrder.indexOf(a.post.omrade);
+      const areaB = omradeOrder.indexOf(b.post.omrade);
+      if (areaA === -1 && areaB === -1) return a.post.nr - b.post.nr;
+      if (areaA === -1) return 1;
+      if (areaB === -1) return -1;
+      if (areaA !== areaB) return areaA - areaB;
+      return a.post.nr - b.post.nr;
+    });
   }
 
   return (
@@ -584,6 +595,7 @@ function PostvaerTab() {
             <option value="sor-nord">Sør → Nord</option>
             <option value="ost-vest">Øst → Vest</option>
             <option value="vest-ost">Vest → Øst</option>
+            <option value="omrade">Område</option>
           </select>
         </div>
       </div>
