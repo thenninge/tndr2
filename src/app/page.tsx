@@ -573,32 +573,32 @@ function PostvaerTab() {
   return (
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Postvær</h2>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
         <button onClick={() => setExpanderOpen(v => !v)} style={{ padding: '7px 16px', borderRadius: 8, background: '#f4f8ff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginBottom: 8 }}>
           Velg poster ({numSelected} valgt{numSelected === 1 ? '' : 'e'}) {expanderOpen ? '▲' : '▼'}
         </button>
-        {expanderOpen && (
-          <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 500, marginTop: 8, marginBottom: 8, background: '#f8faff', border: '1px solid #dde', borderRadius: 8, boxShadow: '0 2px 8px #0001', paddingLeft: 12, paddingRight: 12 }}>
-            {sortedIdx.map(idx => (
-              <li key={ELGPOSTER[idx].name} style={{ marginBottom: 4 }}>
-                <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                  <input type="checkbox" checked={selectedPosts[idx]} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
-                  {ELGPOSTER[idx].name}
-                </label>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div>
+          <b>Sorter etter:</b>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
+            <option value="nord-sor">Nord → Sør</option>
+            <option value="sor-nord">Sør → Nord</option>
+            <option value="ost-vest">Øst → Vest</option>
+            <option value="vest-ost">Vest → Øst</option>
+          </select>
+        </div>
       </div>
-      <div style={{ marginBottom: 16 }}>
-        <b>Sorter etter:</b>{' '}
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
-          <option value="nord-sor">Nord → Sør</option>
-          <option value="sor-nord">Sør → Nord</option>
-          <option value="ost-vest">Øst → Vest</option>
-          <option value="vest-ost">Vest → Øst</option>
-        </select>
-      </div>
+      {expanderOpen && (
+        <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 500, marginTop: 8, marginBottom: 8, background: '#f8faff', border: '1px solid #dde', borderRadius: 8, boxShadow: '0 2px 8px #0001', paddingLeft: 12, paddingRight: 12 }}>
+          {sortedIdx.map(idx => (
+            <li key={ELGPOSTER[idx].name} style={{ marginBottom: 4 }}>
+              <label style={{ cursor: 'pointer', fontSize: 16 }}>
+                <input type="checkbox" checked={selectedPosts[idx]} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
+                {ELGPOSTER[idx].name}
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
       <div style={{ marginBottom: 16 }}>
         <b>Velg tidsrom:</b>
         <div style={{ display: 'flex', gap: 18, marginTop: 6, marginBottom: 6 }}>
