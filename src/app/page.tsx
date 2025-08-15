@@ -651,7 +651,7 @@ function PostvaerTab() {
   );
 }
 
-function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: (p: Post[]) => void }) {
+function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: React.Dispatch<React.SetStateAction<Post[]>> }) {
   const [sortBy, setSortBy] = useState('omrade');
   const [showAdd, setShowAdd] = useState(false);
   const [newNr, setNewNr] = useState('');
