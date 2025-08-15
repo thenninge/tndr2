@@ -94,6 +94,13 @@ interface ForecastDay {
   precipitation: number;
 }
 
+export type HourData = {
+  time: string;
+  temperature: number;
+  weatherCode: number;
+  precipitation: number;
+};
+
 // Enkel Tab-komponent
 function Tabs({ tabs, current, onChange }: { tabs: string[]; current: string; onChange: (tab: string) => void }) {
   return (
@@ -531,11 +538,9 @@ function PostvaerTab() {
       const res = await fetch(url);
       const data = await res.json();
       // Filtrer hourly på valgt tidsrom
-      const hours = (data.hourly?.time || []).map((t: string, idx: number) => ({
+      const hours: HourData[] = (data.hourly?.time || []).map((t: string, idx: number) => ({
         time: t,
-        temp: data.hourly.temperature_2m[idx],
-        windSpeed: data.hourly.windspeed_10m[idx],
-        windDir: data.hourly.winddirection_10m[idx],
+        temperature: data.hourly.temperature_2m[idx],
         weatherCode: data.hourly.weathercode[idx],
         precipitation: data.hourly.precipitation[idx],
       })).filter(h => {
@@ -626,12 +631,12 @@ function PostvaerTab() {
               </tr>
             </thead>
             <tbody>
-              {hourly.map((h: HourlyForecast) => (
+              {hourly.map((h: HourData) => (
                 <tr key={h.time}>
                   <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</td>
-                  <td style={{ padding: 4 }}>{h.temp}°C</td>
-                  <td style={{ padding: 4 }}>{h.windSpeed}</td>
-                  <td style={{ padding: 4 }}><WindArrow deg={h.windDir} /> {h.windDir}° ({windDirectionText(h.windDir)})</td>
+                  <td style={{ padding: 4 }}>{h.temperature}°C</td>
+                  <td style={{ padding: 4 }}>{h.precipitation}</td>
+                  <td style={{ padding: 4 }}><WindArrow deg={h.weatherCode} /> {h.weatherCode}° ({windDirectionText(h.weatherCode)})</td>
                   <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
                   <td style={{ padding: 4 }}>{h.precipitation}</td>
                 </tr>
