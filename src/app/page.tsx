@@ -538,12 +538,14 @@ function PostvaerTab() {
       const res = await fetch(url);
       const data = await res.json();
       // Filtrer hourly på valgt tidsrom
-      const hours: HourData[] = (data.hourly?.time || []).map((t: string, idx: number) => ({
+      const hours: HourlyForecast[] = (data.hourly?.time || []).map((t: string, idx: number) => ({
         time: t,
-        temperature: data.hourly.temperature_2m[idx],
+        temp: data.hourly.temperature_2m[idx],
+        windSpeed: data.hourly.windspeed_10m[idx],
+        windDir: data.hourly.winddirection_10m[idx],
         weatherCode: data.hourly.weathercode[idx],
         precipitation: data.hourly.precipitation[idx],
-      })).filter((h: HourData) => {
+      })).filter((h: HourlyForecast) => {
         const ht = new Date(h.time);
         return ht >= from && ht <= to;
       });
@@ -631,10 +633,10 @@ function PostvaerTab() {
               </tr>
             </thead>
             <tbody>
-              {hourly.map((h: HourData) => (
+              {hourly.map((h: HourlyForecast) => (
                 <tr key={h.time}>
                   <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</td>
-                  <td style={{ padding: 4 }}>{h.temperature}°C</td>
+                  <td style={{ padding: 4 }}>{h.temp}°C</td>
                   <td style={{ padding: 4 }}>{h.precipitation}</td>
                   <td style={{ padding: 4 }}><WindArrow deg={h.weatherCode} /> {h.weatherCode}° ({windDirectionText(h.weatherCode)})</td>
                   <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
