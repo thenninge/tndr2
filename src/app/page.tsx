@@ -383,9 +383,9 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
   return (
     <section style={{ display: 'flex', alignItems: 'flex-start', gap: 32 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h2 style={{ fontSize: 22, marginBottom: 12 }}>Trekk din post!</h2>
-        <div style={{ marginBottom: 12 }}>
-          <button onClick={handleReset} style={{ padding: '6px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer', marginBottom: 8 }}>Nullstill</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
+          <h2 style={{ fontSize: 22, margin: 0 }}>Trekk din post!</h2>
+          <button onClick={handleReset} style={{ padding: '6px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Nullstill</button>
         </div>
         <div style={{ marginBottom: 18 }}>
           <button onClick={() => setExpanderOpen(v => !v)} style={{ padding: '7px 16px', borderRadius: 8, background: '#f4f8ff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginBottom: 8 }}>
