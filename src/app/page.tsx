@@ -430,63 +430,64 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
         {available.length === 0 && (
           <div style={{ color: '#888', marginTop: 10 }}>Ingen poster igjen å trekke.</div>
         )}
-        {/* Flytt autotrekk-knapp og panel hit */}
-        <div style={{ marginTop: 24 }}>
-          <button onClick={() => setShowAuto(v => !v)} style={{ alignSelf: 'flex-start', padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginTop: 8 }}>Autotrekk</button>
-          {showAuto && (
-            <div style={{ background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, marginTop: 8, marginBottom: 8, maxWidth: 500 }}>
-              <b>Velg jegere:</b>
-              <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 400 }}>
-                {ELGJEGERE.map((j, idx) => (
-                  <li key={j.navn} style={{ marginBottom: 4 }}>
-                    <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                      <input type="checkbox" checked={selectedJegere[idx]} onChange={() => handleToggleJeger(idx)} style={{ marginRight: 7 }} />
-                      {j.navn} ({j.callsign})
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              <b>Velg poster:</b>
-              <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 400 }}>
-                {posts.map((p, idx) => (
-                  <li key={p.name} style={{ marginBottom: 4 }}>
-                    <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                      <input type="checkbox" checked={selected[idx]} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
-                      {p.name}
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={handleTrekkAuto}
-                disabled={ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selected[i]).length}
-                style={{ padding: '8px 18px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginTop: 8 }}>
-                Trekk auto
-              </button>
-              {ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selected[i]).length && (
-                <div style={{ color: '#c33', marginTop: 6 }}>Du må velge like mange jegere og poster!</div>
-              )}
-              {autoResult.length > 0 && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 19, marginTop: 10 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: 'left', padding: 4 }}>Post</th>
-                      <th style={{ textAlign: 'left', padding: 4 }}>Callsign</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {autoResult.map((r, i) => (
-                      <tr key={i}>
-                        <td style={{ padding: 4, fontWeight: 700 }}>{r.post.name}</td>
-                        <td style={{ padding: 4, color: '#4a90e2', fontWeight: 600 }}>{r.jeger.callsign}</td>
+        {expanderOpen && (
+          <div style={{ marginBottom: 18 }}>
+            <button onClick={() => setShowAuto(v => !v)} style={{ alignSelf: 'flex-start', padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginTop: 8 }}>Autotrekk</button>
+            {showAuto && (
+              <div style={{ background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, marginTop: 8, marginBottom: 8, maxWidth: 500 }}>
+                <b>Velg jegere:</b>
+                <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 400 }}>
+                  {ELGJEGERE.map((j, idx) => (
+                    <li key={j.navn} style={{ marginBottom: 4 }}>
+                      <label style={{ cursor: 'pointer', fontSize: 16 }}>
+                        <input type="checkbox" checked={selectedJegere[idx]} onChange={() => handleToggleJeger(idx)} style={{ marginRight: 7 }} />
+                        {j.navn} ({j.callsign})
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <b>Velg poster:</b>
+                <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 400 }}>
+                  {posts.map((p, idx) => (
+                    <li key={p.name} style={{ marginBottom: 4 }}>
+                      <label style={{ cursor: 'pointer', fontSize: 16 }}>
+                        <input type="checkbox" checked={selected[idx]} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
+                        {p.name}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={handleTrekkAuto}
+                  disabled={ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selected[i]).length}
+                  style={{ padding: '8px 18px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginTop: 8 }}>
+                  Trekk auto
+                </button>
+                {ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selected[i]).length && (
+                  <div style={{ color: '#c33', marginTop: 6 }}>Du må velge like mange jegere og poster!</div>
+                )}
+                {autoResult.length > 0 && (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 19, marginTop: 10 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: 4 }}>Post</th>
+                        <th style={{ textAlign: 'left', padding: 4 }}>Callsign</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-        </div>
+                    </thead>
+                    <tbody>
+                      {autoResult.map((r, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: 4, fontWeight: 700 }}>{r.post.name}</td>
+                          <td style={{ padding: 4, color: '#4a90e2', fontWeight: 600 }}>{r.jeger.callsign}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <div style={{ marginTop: 24 }}>
           <button onClick={sendToDagensPoster} disabled={drawn.length === 0 || sending} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: drawn.length === 0 || sending ? 'not-allowed' : 'pointer' }}>
             {sending ? 'Sender...' : 'Send liste til Dagens poster'}
