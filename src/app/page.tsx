@@ -814,7 +814,7 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
   // Lagre dagens fordeling
   async function save() {
     setSaving(true);
-    const ny = posts.map((p, idx) => ({ postIdx: idx, jeger: edit[idx] ?? (fordeling.find(f => f.postIdx === idx)?.jeger || "") }));
+    const ny = fordeling.map((f) => ({ postIdx: f.postIdx, jeger: edit[f.postIdx] ?? f.jeger }));
     await fetch("/api/dagensposter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -829,36 +829,41 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Dagens poster</h2>
       {loading ? <div>Laster...</div> : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 18 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', padding: 4 }}>Post</th>
-              <th style={{ textAlign: 'left', padding: 4 }}>Jeger</th>
-              <th style={{ textAlign: 'left', padding: 4 }}>Callsign</th>
-            </tr>
-          </thead>
-          <tbody>
-            {posts.map((post, idx) => {
-              const valgt = edit[idx] ?? (fordeling.find(f => f.postIdx === idx)?.jeger || "");
-              const jegerObj = jegere.find(j => j.navn === valgt);
-              return (
-                <tr key={post.nr+post.name}>
-                  <td style={{ padding: 4, fontWeight: 700 }}>{post.name}</td>
-                  <td style={{ padding: 4 }}>
-                    <select value={valgt} onChange={e => setEdit(ed => ({ ...ed, [idx]: e.target.value }))} style={{ fontSize: 16, padding: 4, borderRadius: 6 }}>
-                      <option value="">Velg jeger</option>
-                      {jegere.map(j => <option key={j.navn} value={j.navn}>{j.navn}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding: 4, color: '#4a90e2', fontWeight: 600 }}>{jegerObj?.callsign || ''}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        fordeling.length === 0 ? (
+          <div style={{ color: '#888', fontSize: 17, marginBottom: 12 }}>Ingen poster er trukket og sendt inn ennå.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 18 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: 4 }}>Post</th>
+                <th style={{ textAlign: 'left', padding: 4 }}>Jeger</th>
+                <th style={{ textAlign: 'left', padding: 4 }}>Callsign</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fordeling.map((f) => {
+                const post = posts[f.postIdx];
+                const valgt = edit[f.postIdx] ?? f.jeger;
+                const jegerObj = jegere.find(j => j.navn === valgt);
+                return (
+                  <tr key={post.nr+post.name}>
+                    <td style={{ padding: 4, fontWeight: 700 }}>{post.name}</td>
+                    <td style={{ padding: 4 }}>
+                      <select value={valgt} onChange={e => setEdit(ed => ({ ...ed, [f.postIdx]: e.target.value }))} style={{ fontSize: 16, padding: 4, borderRadius: 6 }}>
+                        <option value="">Velg jeger</option>
+                        {jegere.map(j => <option key={j.navn} value={j.navn}>{j.navn}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: 4, color: '#4a90e2', fontWeight: 600 }}>{jegerObj?.callsign || ''}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )
       )}
-      <button onClick={save} disabled={saving} style={{ marginTop: 16, padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Lagre dagens poster</button>
-      <div style={{ marginTop: 18, color: '#888', fontSize: 15 }}>Alle på jaktlaget ser denne listen.</div>
+      <button onClick={save} disabled={saving || fordeling.length === 0} style={{ marginTop: 16, padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: fordeling.length === 0 ? 'not-allowed' : 'pointer' }}>Lagre dagens poster</button>
+      <div style={{ marginTop: 18, color: '#888', fontSize: 15 }}>Alle på jaktlaget ser denne listen. Du kan endre hvem som er på hvilken post og lagre på nytt.</div>
     </section>
   );
 }
