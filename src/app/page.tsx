@@ -488,7 +488,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
           {sendMsg && <span style={{ marginLeft: 12, color: '#2a7', fontWeight: 500 }}>{sendMsg}</span>}
         </div>
       </div>
-      <div style={{ minWidth: 220, maxWidth: 340, background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, boxShadow: '0 2px 8px #0001' }}>
+      <div style={{ minWidth: 220, maxWidth: 340, background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, boxShadow: '0 2px 8px #0001', marginLeft: 32 }}>
         <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 10 }}>Trukne poster</div>
         {drawn.length === 0 ? (
           <div style={{ color: '#aaa' }}>Ingen poster trukket ennå.</div>
