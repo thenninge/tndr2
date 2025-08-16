@@ -383,32 +383,12 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
   return (
     <section style={{ display: 'flex', alignItems: 'flex-start', gap: 32 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 12 }}>
-          <h2 style={{ fontSize: 22, margin: 0 }}>Trekk din post!</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <button onClick={handleReset} style={{ padding: '6px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Reset</button>
-            <button onClick={() => setShowAuto(v => !v)} style={{ padding: '6px 16px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Auto</button>
-          </div>
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <button onClick={() => setExpanderOpen(v => !v)} style={{ padding: '7px 16px', borderRadius: 8, background: '#f4f8ff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <button onClick={() => setExpanderOpen(v => !v)} style={{ padding: '6px 14px', borderRadius: 8, background: '#f4f8ff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer', minWidth: 120 }}>
             Velg poster ({numSelected} valgt{numSelected === 1 ? '' : 'e'}) {expanderOpen ? '▲' : '▼'}
           </button>
-          {expanderOpen && (
-            <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 500, marginTop: 8, marginBottom: 8, background: '#f8faff', border: '1px solid #dde', borderRadius: 8, boxShadow: '0 2px 8px #0001', paddingLeft: 12, paddingRight: 12 }}>
-              {sortedIdx.map(idx => (
-                <li key={ELGPOSTER[idx].name} style={{ marginBottom: 4, display: 'flex', alignItems: 'center' }}>
-                  <label style={{ cursor: 'pointer', fontSize: 16, flex: 1 }}>
-                    <input type="checkbox" checked={selected[idx] && remaining.includes(idx)} disabled={!remaining.includes(idx)} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
-                    {ELGPOSTER[idx].name}
-                  </label>
-                  {!remaining.includes(idx) && (
-                    <span style={{ color: '#c33', fontSize: 14, fontWeight: 600, marginLeft: 8 }}>Trukket!</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+          <button onClick={handleReset} style={{ padding: '6px 14px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Reset</button>
+          <button onClick={() => setShowAuto(v => !v)} style={{ padding: '6px 14px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Auto</button>
         </div>
         <div style={{ marginBottom: 18 }}>
           <div style={{ marginBottom: 8, fontWeight: 500 }}>Hvem er du?</div>
