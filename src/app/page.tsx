@@ -385,7 +385,8 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
           <h2 style={{ fontSize: 22, margin: 0 }}>Trekk din post!</h2>
-          <button onClick={handleReset} style={{ padding: '6px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Nullstill</button>
+          <button onClick={handleReset} style={{ padding: '6px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Reset</button>
+          <button onClick={() => setShowAuto(v => !v)} style={{ alignSelf: 'flex-start', padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Auto</button>
         </div>
         <div style={{ marginBottom: 18 }}>
           <button onClick={() => setExpanderOpen(v => !v)} style={{ padding: '7px 16px', borderRadius: 8, background: '#f4f8ff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginBottom: 8 }}>
@@ -432,7 +433,6 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
         )}
         {expanderOpen && (
           <div style={{ marginBottom: 18 }}>
-            <button onClick={() => setShowAuto(v => !v)} style={{ alignSelf: 'flex-start', padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginTop: 8 }}>Autotrekk</button>
             {showAuto && (
               <div style={{ background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, marginTop: 8, marginBottom: 8, maxWidth: 500 }}>
                 <b>Velg jegere:</b>
