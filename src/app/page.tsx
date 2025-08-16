@@ -408,8 +408,10 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
         {showResult && winnerIdx !== null && (
           <div style={{ fontSize: 22, fontWeight: 700, color: '#2a7', marginBottom: 10 }}>Du har fått: {ELGPOSTER[winnerIdx].name}!</div>
         )}
-        {available.length === 0 && (
-          <div style={{ color: '#888', marginTop: 10 }}>{remaining.length} poster igjen å trekke.</div>
+        {numSelected === 0 ? (
+          <div style={{ color: '#888', marginTop: 10 }}>Ingen poster igjen å trekke.</div>
+        ) : (
+          <div style={{ color: '#888', marginTop: 10 }}>{numSelected} poster igjen å trekke!</div>
         )}
         {expanderOpen && (
           <>
