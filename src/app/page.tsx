@@ -1042,7 +1042,7 @@ export default function Home() {
   // I Home-komponenten, i Kart-tab:
   // 1. Legg til state:
   const [kartVisning, setKartVisning] = useState<'alle' | 'dagens'>('alle');
-  const [dagensPosterData, setDagensPosterData] = useState<any[]>([]);
+  const [dagensPosterData, setDagensPosterData] = useState<{ postIdx: number; jeger: string }[]>([]);
   // 2. useEffect for å hente dagens poster:
   useEffect(() => {
     if (activeTab === 'Kart' && kartVisning === 'dagens') {
@@ -1056,8 +1056,8 @@ export default function Home() {
     }
   }, [activeTab, kartVisning]);
   // 3. Bruk dagensPosterData til filtrering:
-  const dagensPosterIdx = kartVisning === 'dagens' ? (dagensPosterData.map((d: any) => d.postIdx)) : [];
-  const dagensPosterInfo = kartVisning === 'dagens' ? (dagensPosterData.map((d: any) => {
+  const dagensPosterIdx = kartVisning === 'dagens' ? (dagensPosterData.map((d) => d.postIdx)) : [];
+  const dagensPosterInfo = kartVisning === 'dagens' ? (dagensPosterData.map((d) => {
     const jegerObj = ELGJEGERE.find(j => j.navn === d.jeger);
     return { postIdx: d.postIdx, jeger: d.jeger, callsign: jegerObj?.callsign || '' };
   })) : undefined;
