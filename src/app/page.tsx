@@ -299,6 +299,8 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
   const [showAuto, setShowAuto] = useState(false);
   const [selectedJegere, setSelectedJegere] = useState(() => ELGJEGERE.map(() => true));
   const [autoResult, setAutoResult] = useState<{ post: Post; jeger: Jeger }[]>([]);
+  const [sending, setSending] = useState(false);
+  const [sendMsg, setSendMsg] = useState<string | null>(null);
 
   // Sorter ELGPOSTER alfabetisk for visning
   const sortedIdx = ELGPOSTER
@@ -359,6 +361,19 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
       trekk.push({ post, jeger });
     });
     setAutoResult(trekk);
+  }
+
+  async function sendToDagensPoster() {
+    setSending(true);
+    setSendMsg(null);
+    // Lagre drawn-listen til API
+    await fetch("/api/dagensposter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(drawn),
+    });
+    setSending(false);
+    setSendMsg("Listen er lagret til Dagens poster!");
   }
 
   const available = remaining.filter(i => selected[i]);
@@ -471,6 +486,12 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
               )}
             </div>
           )}
+        </div>
+        <div style={{ marginTop: 24 }}>
+          <button onClick={sendToDagensPoster} disabled={drawn.length === 0 || sending} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: drawn.length === 0 || sending ? 'not-allowed' : 'pointer' }}>
+            {sending ? 'Sender...' : 'Send liste til Dagens poster'}
+          </button>
+          {sendMsg && <span style={{ marginLeft: 12, color: '#2a7', fontWeight: 500 }}>{sendMsg}</span>}
         </div>
       </div>
       <div style={{ minWidth: 220, maxWidth: 340, background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, boxShadow: '0 2px 8px #0001' }}>
