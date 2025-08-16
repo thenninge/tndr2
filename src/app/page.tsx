@@ -414,7 +414,20 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
           <div style={{ color: '#888', marginTop: 10 }}>Ingen poster igjen å trekke.</div>
         )}
         {expanderOpen && (
-          <div style={{ marginBottom: 18 }}>
+          <>
+            <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 500, marginTop: 8, marginBottom: 8, background: '#f8faff', border: '1px solid #dde', borderRadius: 8, boxShadow: '0 2px 8px #0001', paddingLeft: 12, paddingRight: 12 }}>
+              {sortedIdx.map(idx => (
+                <li key={ELGPOSTER[idx].name} style={{ marginBottom: 4, display: 'flex', alignItems: 'center' }}>
+                  <label style={{ cursor: 'pointer', fontSize: 16, flex: 1 }}>
+                    <input type="checkbox" checked={selected[idx] && remaining.includes(idx)} disabled={!remaining.includes(idx)} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
+                    {ELGPOSTER[idx].name}
+                  </label>
+                  {!remaining.includes(idx) && (
+                    <span style={{ color: '#c33', fontSize: 14, fontWeight: 600, marginLeft: 8 }}>Trukket!</span>
+                  )}
+                </li>
+              ))}
+            </ul>
             {showAuto && (
               <div style={{ background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, marginTop: 8, marginBottom: 8, maxWidth: 500 }}>
                 <b>Velg jegere:</b>
@@ -468,7 +481,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
                 )}
               </div>
             )}
-          </div>
+          </>
         )}
         <div style={{ marginTop: 24 }}>
           <button onClick={sendToDagensPoster} disabled={drawn.length === 0 || sending} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: drawn.length === 0 || sending ? 'not-allowed' : 'pointer' }}>
