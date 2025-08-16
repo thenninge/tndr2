@@ -409,7 +409,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
           <div style={{ fontSize: 22, fontWeight: 700, color: '#2a7', marginBottom: 10 }}>Du har fått: {ELGPOSTER[winnerIdx].name}!</div>
         )}
         {available.length === 0 && (
-          <div style={{ color: '#888', marginTop: 10 }}>Ingen poster igjen å trekke.</div>
+          <div style={{ color: '#888', marginTop: 10 }}>{remaining.length} poster igjen å trekke.</div>
         )}
         {expanderOpen && (
           <>
@@ -1016,6 +1016,16 @@ export default function Home() {
     }
     fetchWeather();
   }, [weatherLat, weatherLng]);
+
+  useEffect(() => {
+    if (drawn.length > 0) {
+      fetch("/api/dagensposter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(drawn),
+      });
+    }
+  }, [drawn]);
 
   return (
     <div style={{ width: "100%", maxWidth: 600, margin: "0 auto", padding: 24 }}>
