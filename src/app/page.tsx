@@ -381,8 +381,8 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
   const jegereUtenPost = ELGJEGERE.filter(j => !drawn.some(d => d.jeger === j.navn));
 
   return (
-    <section style={{ display: 'flex', alignItems: 'flex-start', gap: 32 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
+    <section style={{ display: 'flex', alignItems: 'flex-start', gap: 48 }}>
+      <div style={{ flex: 1, minWidth: 340 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <button onClick={() => setExpanderOpen(v => !v)} style={{ padding: '6px 14px', borderRadius: 8, background: '#f4f8ff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer', minWidth: 120 }}>
             Velg poster ({numSelected} valgt{numSelected === 1 ? '' : 'e'}) {expanderOpen ? '▲' : '▼'}
@@ -488,7 +488,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
           {sendMsg && <span style={{ marginLeft: 12, color: '#2a7', fontWeight: 500 }}>{sendMsg}</span>}
         </div>
       </div>
-      <div style={{ minWidth: 220, maxWidth: 340, background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, boxShadow: '0 2px 8px #0001', marginLeft: 32 }}>
+      <div style={{ minWidth: 220, maxWidth: 340, background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, boxShadow: '0 2px 8px #0001', marginLeft: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 10 }}>Trukne poster</div>
         {drawn.length === 0 ? (
           <div style={{ color: '#aaa' }}>Ingen poster trukket ennå.</div>
