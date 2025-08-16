@@ -126,73 +126,110 @@ function Tabs({ tabs, current, onChange }: { tabs: string[]; current: string; on
   );
 }
 
-function DgLogger({ name, lat, lng, onDelete }: { name: string; lat: number; lng: number; onDelete?: () => void }) {
-  const [running, setRunning] = useState(false);
-  const [accelerated, setAccelerated] = useState(false);
+// Flytt type Logger til før DgLogger:
+type Logger = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  startTime: number | null;
+  target: number;
+  offset: number;
+  accelerated: boolean;
+  running: boolean;
+  simulatedElapsed: number; // minutter
+};
+
+function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l: Logger) => void; onDelete?: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<{ t: number; sum: number; temp: number }[]>([]);
   const [dgSum, setDgSum] = useState(0);
-  const [dgHistory, setDgHistory] = useState<{ t: number; sum: number; temp: number }[]>([]); // t: simulert minutt
-  const [showReset, setShowReset] = useState(false);
   const [currentTemp, setCurrentTemp] = useState<number | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const [simTime, setSimTime] = useState(0); // i minutter
-  const [target, setTarget] = useState(40);
-  const [offset, setOffset] = useState(0);
-  const [showDelete, setShowDelete] = useState(false);
-
-  // Hent temperatur for gitt tidspunkt fra API
-  async function fetchTempForTime(dt: Date) {
-    const iso = dt.toISOString().slice(0, 13) + ':00'; // timeoppløsning
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m&timezone=auto&start_date=${iso.slice(0,10)}&end_date=${iso.slice(0,10)}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    // Finn nærmeste time
-    const idx = data.hourly?.time?.findIndex((t: string) => t.startsWith(iso));
-    return idx !== -1 ? data.hourly.temperature_2m[idx] : null;
-  }
-
+  const [estimatedDone, setEstimatedDone] = useState<Date | null>(null);
+  // --- Akselerert tid: oppdater simulatedElapsed ---
   useEffect(() => {
-    if (!running) return;
-    timerRef.current = setInterval(async () => {
-      setSimTime((prev) => prev + (accelerated ? 60 : 15)); // 1 time eller 15 min
-      const now = new Date();
-      now.setMinutes(now.getMinutes() + (simTime + (accelerated ? 60 : 15)));
-      let temp = null;
-      if (accelerated) {
-        temp = await fetchTempForTime(now);
-      } else {
-        temp = await fetchTempForTime(now);
+    if (!logger.running || !logger.accelerated) return;
+    const timer = setInterval(() => {
+      onChange({ ...logger, simulatedElapsed: logger.simulatedElapsed + 60 });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [logger.running, logger.accelerated, logger.simulatedElapsed]);
+  useEffect(() => {
+    if (!logger.running || logger.startTime == null) return;
+    setLoading(true);
+    async function fetchTemps() {
+      const interval = logger.accelerated ? 60 : 15; // minutter
+      const start = new Date(logger.startTime!);
+      const now = logger.accelerated ? new Date(logger.startTime! + logger.simulatedElapsed * 60 * 1000) : new Date();
+      // Finn alle datoer som trengs
+      const dates: string[] = [];
+      let d = new Date(start);
+      while (d <= now) {
+        dates.push(d.toISOString().slice(0, 10));
+        d.setDate(d.getDate() + 1);
       }
-      if (temp === null) temp = 10;
-      temp = temp + offset;
-      setCurrentTemp(temp);
-      setDgHistory((prev) => {
-        const t = prev.length > 0 ? prev[prev.length - 1].t + (accelerated ? 60 : 15) : 0;
-        const dg = temp / (accelerated ? 24 : 96);
-        const sum = (prev.length > 0 ? prev[prev.length - 1].sum : 0) + dg;
-        setDgSum(sum);
-        return [...prev, { t, sum, temp }];
+      // Hent alle temperaturer for alle datoer (archive for fortid, forecast for fremtid)
+      let temps: { time: string; temp: number }[] = [];
+      for (const date of dates) {
+        const isPast = new Date(date) < new Date(new Date().toISOString().slice(0, 10));
+        let url = '';
+        if (isPast) {
+          url = `https://archive-api.open-meteo.com/v1/archive?latitude=${logger.lat}&longitude=${logger.lng}&start_date=${date}&end_date=${date}&hourly=temperature_2m`;
+        } else {
+          url = `https://api.open-meteo.com/v1/forecast?latitude=${logger.lat}&longitude=${logger.lng}&hourly=temperature_2m&timezone=auto&start_date=${date}&end_date=${date}`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.hourly?.time && data.hourly?.temperature_2m) {
+          for (let i = 0; i < data.hourly.time.length; ++i) {
+            temps.push({ time: data.hourly.time[i], temp: data.hourly.temperature_2m[i] });
+          }
+        }
+      }
+      // Bygg temperatur-array for alle intervaller
+      const intervals: { t: number; temp: number }[] = [];
+      let tMin = 0;
+      let t = new Date(start);
+      while (t <= now) {
+        // Finn nærmeste time
+        const hour = t.getHours();
+        const dateStr = t.toISOString().slice(0, 13);
+        const found = temps.find(x => x.time.startsWith(dateStr));
+        const temp = found ? found.temp + logger.offset : 10 + logger.offset;
+        intervals.push({ t: tMin, temp });
+        tMin += interval;
+        t = new Date(t.getTime() + interval * 60 * 1000);
+      }
+      // Summer døgngrader og stopp når target er nådd
+      let sum = 0;
+      let doneIdx = -1;
+      const hist = intervals.map((iv, i) => {
+        const dg = iv.temp / (logger.accelerated ? 24 : 96);
+        sum += dg;
+        if (doneIdx === -1 && sum >= logger.target) doneIdx = i;
+        return { t: iv.t, sum, temp: iv.temp };
       });
-    }, accelerated ? 1000 : 4000); // 1 sek = 1 time, 4 sek = 15 min
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [running, accelerated, simTime, lat, lng, offset]);
-
-  useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
-
+      setHistory(hist);
+      setDgSum(sum);
+      setCurrentTemp(intervals.length > 0 ? intervals[intervals.length - 1].temp : null);
+      if (doneIdx !== -1) {
+        const doneTime = new Date(start.getTime() + hist[doneIdx].t * 60 * 1000);
+        setEstimatedDone(doneTime);
+      } else {
+        setEstimatedDone(null);
+      }
+      setLoading(false);
+    }
+    fetchTemps();
+  }, [logger]);
   function handleReset() {
-    setShowReset(false);
-    setRunning(false);
-    setDgSum(0);
-    setDgHistory([]);
-    setSimTime(0);
-    setCurrentTemp(null);
+    onChange({ ...logger, running: false, startTime: null, simulatedElapsed: 0 });
+    setHistory([]); setDgSum(0); setCurrentTemp(null);
   }
-
-  function DgGraph({ data, target = 40 }: { data: { t: number; sum: number; temp: number }[]; target?: number }) {
+  function DgGraph({ data, target = 40 }: { data: { t: number; sum: number }[]; target?: number }) {
     if (data.length === 0) return <div>Ingen data ennå.</div>;
     const width = 400, height = 180, pad = 32;
-    const maxX = Math.max(...data.map(d => d.t), 96 * 15); // minst ett døgn
+    const maxX = Math.max(...data.map(d => d.t), 96 * 15);
     const maxY = Math.max(...data.map(d => d.sum), target);
     const points = data.map(d => {
       const x = pad + (d.t / maxX) * (width - 2 * pad);
@@ -214,72 +251,52 @@ function DgLogger({ name, lat, lng, onDelete }: { name: string; lat: number; lng
       </svg>
     );
   }
-
   return (
     <div style={{ border: '1px solid #ddd', borderRadius: 12, padding: 18, marginBottom: 24, background: '#fafcff', position: 'relative' }}>
       {onDelete && (
-        <button onClick={() => setShowDelete(true)} style={{ position: 'absolute', top: 10, right: 10, background: '#ffe0e0', border: '1px solid #d8b2b2', borderRadius: 8, padding: '4px 12px', fontSize: 15, cursor: 'pointer' }}>Slett</button>
+        <button onClick={() => onDelete()} style={{ position: 'absolute', top: 10, right: 10, background: '#ffe0e0', border: '1px solid #d8b2b2', borderRadius: 8, padding: '4px 12px', fontSize: 15, cursor: 'pointer' }}>Slett</button>
       )}
-      {showDelete && (
-        <div style={{ position: 'absolute', top: 38, right: 10, background: '#fffbe0', border: '1px solid #eed', borderRadius: 8, padding: 12, zIndex: 10 }}>
-          <div style={{ marginBottom: 8 }}>Vil du slette?</div>
-          <button onClick={() => { setShowDelete(false); onDelete && onDelete(); }} style={{ marginRight: 8, padding: '4px 12px', borderRadius: 8, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 14, cursor: 'pointer' }}>Ja</button>
-          <button onClick={() => setShowDelete(false)} style={{ padding: '4px 12px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 14, cursor: 'pointer' }}>Nei</button>
-        </div>
-      )}
-      <h3 style={{ margin: 0, marginBottom: 8 }}>{name}</h3>
+      <h3 style={{ margin: 0, marginBottom: 8 }}>{logger.name}</h3>
       <div style={{ marginBottom: 8, display: 'flex', gap: 16, alignItems: 'center' }}>
         <label style={{ fontSize: 15 }}>
-          <input type="checkbox" checked={accelerated} onChange={e => setAccelerated(e.target.checked)} style={{ marginRight: 6 }} />
+          <input type="checkbox" checked={logger.accelerated} onChange={e => onChange({ ...logger, accelerated: e.target.checked })} style={{ marginRight: 6 }} />
           Akselerert tid (simulering)
         </label>
         <label style={{ fontSize: 15 }}>
           Target døgngrader:
-          <input type="number" value={target} min={1} max={100} onChange={e => setTarget(Number(e.target.value))} style={{ marginLeft: 6, width: 60, padding: 3, borderRadius: 6, border: '1px solid #ccc' }} />
+          <input type="number" value={logger.target} min={1} max={100} onChange={e => onChange({ ...logger, target: Number(e.target.value) })} style={{ marginLeft: 6, width: 60, padding: 3, borderRadius: 6, border: '1px solid #ccc' }} />
         </label>
         <label style={{ fontSize: 15 }}>
           Temp-offset:
-          <input type="number" value={offset} min={-10} max={10} step={1} onChange={e => setOffset(Number(e.target.value))} style={{ marginLeft: 6, width: 60, padding: 3, borderRadius: 6, border: '1px solid #ccc' }} />
+          <input type="number" value={logger.offset} min={-10} max={10} step={1} onChange={e => onChange({ ...logger, offset: Number(e.target.value) })} style={{ marginLeft: 6, width: 60, padding: 3, borderRadius: 6, border: '1px solid #ccc' }} />
         </label>
       </div>
       <div style={{ marginBottom: 8 }}>
-        <button onClick={() => setRunning(v => !v)} style={{ padding: '8px 18px', borderRadius: 8, background: running ? '#ffe0e0' : '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginRight: 12 }}>{running ? 'Pause' : 'Start'}</button>
-        <button onClick={() => setShowReset(true)} style={{ padding: '8px 18px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 16, cursor: 'pointer' }}>Nullstill</button>
+        <button onClick={() => onChange({ ...logger, running: !logger.running, startTime: !logger.running ? Date.now() : logger.startTime })} style={{ padding: '8px 18px', borderRadius: 8, background: logger.running ? '#ffe0e0' : '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginRight: 12 }}>{logger.running ? 'Pause' : 'Start'}</button>
+        <button onClick={handleReset} style={{ padding: '8px 18px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 16, cursor: 'pointer' }}>Nullstill</button>
       </div>
-      {showReset && (
-        <div style={{ background: '#fffbe0', border: '1px solid #eed', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-          <div style={{ marginBottom: 8 }}>Er du sikker på at du vil nullstille måleren?</div>
-          <button onClick={handleReset} style={{ marginRight: 12, padding: '6px 16px', borderRadius: 8, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 15, cursor: 'pointer' }}>Ja, nullstill</button>
-          <button onClick={() => setShowReset(false)} style={{ padding: '6px 16px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Nei</button>
-        </div>
-      )}
-      <div style={{ marginBottom: 12 }}>Akkumulert døgngrad: <b>{dgSum.toFixed(2)}</b></div>
-      {dgHistory.length > 0 && (
-        <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>
-          Timer: {(() => {
-            const last = dgHistory[dgHistory.length - 1];
-            const totalMin = last.t;
-            const days = Math.floor(totalMin / 1440);
-            const hours = Math.floor((totalMin % 1440) / 60);
-            const mins = totalMin % 60;
-            return `${days}:${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-          })()}
-        </div>
-      )}
-      <DgGraph data={dgHistory} target={target} />
-      {dgHistory.length > 0 && (
-        <>
+      {loading ? <div>Laster temperaturdata...</div> : <>
+        <div style={{ marginBottom: 12 }}>Akkumulert døgngrad: <b>{dgSum.toFixed(2)}</b></div>
+        {history.length > 0 && (
           <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>
-            Sist hentet: {(() => {
-              const last = dgHistory[dgHistory.length - 1];
-              const now = new Date();
-              now.setMinutes(now.getMinutes() + last.t);
-              return now.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: '2-digit' });
+            Timer: {(() => {
+              const last = history[history.length - 1];
+              const totalMin = last.t;
+              const days = Math.floor(totalMin / 1440);
+              const hours = Math.floor((totalMin % 1440) / 60);
+              const mins = totalMin % 60;
+              return `${days}:${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
             })()}
           </div>
-        </>
-      )}
-      <div style={{ fontSize: 13, color: '#888' }}>Temperatur: {currentTemp !== null ? `${currentTemp.toFixed(1)}°C` : 'ukjent'} (offset: {offset >= 0 ? '+' : ''}{offset})</div>
+        )}
+        <DgGraph data={history} target={logger.target} />
+        {estimatedDone && (
+          <div style={{ fontSize: 13, color: '#2a7', marginBottom: 2 }}>
+            Estimert ferdig: {estimatedDone.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: '2-digit', hour12: false })}
+          </div>
+        )}
+        <div style={{ fontSize: 13, color: '#888' }}>Temperatur: {currentTemp !== null ? `${currentTemp.toFixed(1)}°C` : 'ukjent'} (offset: {logger.offset >= 0 ? '+' : ''}{logger.offset})</div>
+      </>}
     </div>
   );
 }
@@ -350,8 +367,10 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
     setSelectedJegere(sel => sel.map((v, i) => i === idx ? !v : v));
   }
   function handleTrekkAuto() {
+    // Kun valgte poster
+    const valgtePoster = posts.filter((_, i) => selected[i]);
     const valgteJegere = ELGJEGERE.filter((_, i) => selectedJegere[i]);
-    const ledigePoster = [...posts];
+    const ledigePoster = [...valgtePoster];
     const trekk: { post: Post; jeger: Jeger }[] = [];
     valgteJegere.forEach(jeger => {
       if (ledigePoster.length === 0) return;
@@ -379,6 +398,10 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
   const numSelected = selected.filter(Boolean).length;
   const jegereUtenPost = ELGJEGERE.filter(j => !drawn.some(d => d.jeger === j.navn));
   const numIgjen = selected.filter(Boolean).length - drawn.length;
+
+  // Rett før {showAuto && ( ... )} :
+  const antallValgtePoster = selected.filter(Boolean).length;
+  const antallValgteJegere = selectedJegere.filter(Boolean).length;
 
   return (
     <section style={{ display: 'flex', alignItems: 'flex-start', gap: 48 }}>
@@ -409,9 +432,9 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
           <div style={{ fontSize: 22, fontWeight: 700, color: '#2a7', marginBottom: 10 }}>Du har fått: {ELGPOSTER[winnerIdx].name}!</div>
         )}
         {numIgjen === 0 ? (
-          <div style={{ color: '#888', marginTop: 10 }}>Ingen poster igjen å trekke.</div>
+          <div style={{ color: '#888', marginBottom: 8 }}>Ingen poster igjen å trekke.</div>
         ) : (
-          <div style={{ color: '#888', marginTop: 10 }}>{numIgjen} poster igjen å trekke!</div>
+          <div style={{ color: '#888', marginBottom: 8 }}>{numIgjen} poster igjen å trekke!</div>
         )}
         {expanderOpen && (
           <>
@@ -435,7 +458,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
                   {ELGJEGERE.map((j, idx) => (
                     <li key={j.navn} style={{ marginBottom: 4 }}>
                       <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                        <input type="checkbox" checked={selectedJegere[idx]} onChange={() => handleToggleJeger(idx)} style={{ marginRight: 7 }} />
+                        <input type="checkbox" checked={selectedJegere[idx]} disabled={!selectedJegere[idx] && antallValgteJegere >= antallValgtePoster} onChange={() => handleToggleJeger(idx)} style={{ marginRight: 7 }} />
                         {j.navn} ({j.callsign})
                       </label>
                     </li>
@@ -454,11 +477,11 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
                 </ul>
                 <button
                   onClick={handleTrekkAuto}
-                  disabled={ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selected[i]).length}
+                  disabled={antallValgteJegere !== antallValgtePoster || antallValgtePoster === 0}
                   style={{ padding: '8px 18px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginTop: 8 }}>
                   Trekk auto
                 </button>
-                {ELGJEGERE.filter((_, i) => selectedJegere[i]).length !== posts.filter((_, i) => selected[i]).length && (
+                {antallValgteJegere !== antallValgtePoster || antallValgtePoster === 0 && (
                   <div style={{ color: '#c33', marginTop: 6 }}>Du må velge like mange jegere og poster!</div>
                 )}
                 {autoResult.length > 0 && (
@@ -665,10 +688,10 @@ function PostvaerTab() {
             <tbody>
               {hourly.map((h: HourlyForecast) => (
                 <tr key={h.time}>
-                  <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</td>
+                  <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</td>
                   <td style={{ padding: 4 }}>{h.temp}°C</td>
                   <td style={{ padding: 4 }}>{h.windSpeed}</td>
-                  <td style={{ padding: 4 }}><WindArrow deg={h.windDir} /> {h.windDir}° ({windDirectionText(h.windDir)})</td>
+                  <td style={{ padding: 4 }}><WindArrow deg={h.windDir} /> {windDirectionText(h.windDir)}</td>
                   <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
                   <td style={{ padding: 4 }}>{h.precipitation}</td>
                 </tr>
@@ -875,7 +898,6 @@ export default function Home() {
   const [expand, setExpand] = useState(false);
   const [activeTab, setActiveTab] = useState('Vær');
   // For dynamiske døgngrad-loggere
-  const [loggers, setLoggers] = useState<{ id: string; name: string; lat: number; lng: number }[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   // Døgngrad-logging state
@@ -890,8 +912,6 @@ export default function Home() {
   const [showReset, setShowReset] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Delt elgpost-liste for hele appen
-  const [elgposter, setElgposter] = useState(() => [...ELGPOSTER]);
   // Delt trekkData-state for trukne poster
   const [trekkData, setTrekkData] = useState<TrekkData[]>([]);
 
@@ -1019,12 +1039,100 @@ export default function Home() {
     fetchWeather();
   }, [weatherLat, weatherLng]);
 
+  // I Home-komponenten, i Kart-tab:
+  // 1. Legg til state:
+  const [kartVisning, setKartVisning] = useState<'alle' | 'dagens'>('alle');
+  const [dagensPosterData, setDagensPosterData] = useState<any[]>([]);
+  // 2. useEffect for å hente dagens poster:
+  useEffect(() => {
+    if (activeTab === 'Kart' && kartVisning === 'dagens') {
+      fetch('/api/dagensposter')
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data)) setDagensPosterData(data);
+          else if (data.assignments) setDagensPosterData(data.assignments);
+          else setDagensPosterData([]);
+        });
+    }
+  }, [activeTab, kartVisning]);
+  // 3. Bruk dagensPosterData til filtrering:
+  const dagensPosterIdx = kartVisning === 'dagens' ? (dagensPosterData.map((d: any) => d.postIdx)) : [];
+  const dagensPosterInfo = kartVisning === 'dagens' ? (dagensPosterData.map((d: any) => {
+    const jegerObj = ELGJEGERE.find(j => j.navn === d.jeger);
+    return { postIdx: d.postIdx, jeger: d.jeger, callsign: jegerObj?.callsign || '' };
+  })) : undefined;
+  const elghyttaIdx = ELGPOSTER.findIndex(p => /hytte|elghytta/i.test(p.name));
+  // Rett før postsToShow:
+  type KartPost = Post & { originalIdx?: number; visBlatt?: boolean };
+  let postsToShow: KartPost[] = kartVisning === 'alle'
+    ? ELGPOSTER
+    : ELGPOSTER
+        .map((p, idx) => ({ ...p, originalIdx: idx }))
+        .filter((p) => dagensPosterIdx.includes(p.originalIdx));
+  if (kartVisning === 'dagens' && elghyttaIdx !== -1 && !postsToShow.some(p => p.originalIdx === elghyttaIdx)) {
+    postsToShow = [
+      ...postsToShow,
+      { ...ELGPOSTER[elghyttaIdx], originalIdx: elghyttaIdx, visBlatt: true },
+    ];
+  }
+
+  // --- Persistens for mørnings-timer og elgposter/jegere ---
+  // I Home-komponenten:
+  // 1. Les elgposter fra localStorage ved init:
+  const [elgposter, setElgposter] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('elgposter');
+      if (saved) return JSON.parse(saved);
+    }
+    return [...ELGPOSTER];
+  });
+  // 2. Lagre elgposter til localStorage ved endring:
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('elgposter', JSON.stringify(elgposter));
+    }
+  }, [elgposter]);
+  // 3. Reset-knapp for elgposter:
+  function handleResetElgposter() {
+    if (window.confirm('Vil du tilbakestille elgposter til standard?')) {
+      setElgposter([...ELGPOSTER]);
+      localStorage.removeItem('elgposter');
+    }
+  }
+  // --- Persistens for mørnings-timer (loggers) ---
+  const [loggers, setLoggers] = useState<Logger[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('loggers');
+      if (saved) {
+        const arr = JSON.parse(saved);
+        return arr.map((l: any) => ({
+          id: l.id,
+          name: l.name,
+          lat: l.lat,
+          lng: l.lng,
+          startTime: l.startTime ?? null,
+          target: l.target ?? 40,
+          offset: l.offset ?? 0,
+          accelerated: l.accelerated ?? false,
+          running: l.running ?? false,
+          simulatedElapsed: l.simulatedElapsed ?? 0,
+        }));
+      }
+    }
+    return [];
+  });
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('loggers', JSON.stringify(loggers));
+    }
+  }, [loggers]);
+
   return (
     <div style={{ width: "100%", maxWidth: 600, margin: "0 auto", padding: 24 }}>
       <header style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sanbekken IT & Drift</h1>
       </header>
-      <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Mørning", "Elgposter", "Kart"]} current={activeTab} onChange={setActiveTab} />
+      <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter"]} current={activeTab} onChange={setActiveTab} />
       {activeTab === "Vær" && (
         <section>
           <h2 style={{ fontSize: 20, marginBottom: 8 }}>Vær for de neste 6 timene (Elghytta)</h2>
@@ -1045,12 +1153,12 @@ export default function Home() {
               <tbody>
                 {hourly.map((h) => (
                   <tr key={h.time}>
-                    <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                    <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</td>
                     <td style={{ padding: 4 }}>{h.temp}°C</td>
                     <td style={{ padding: 4 }}>{h.windSpeed}</td>
                     <td style={{ padding: 4 }}>
                       <WindArrow deg={h.windDir} />
-                      {h.windDir}° ({windDirectionText(h.windDir)})
+                      {windDirectionText(h.windDir)}
                     </td>
                     <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
                     <td style={{ padding: 4 }}>{h.precipitation}</td>
@@ -1087,7 +1195,7 @@ export default function Home() {
                         <td style={{ padding: 4 }}>{day.windSpeed}</td>
                         <td style={{ padding: 4 }}>
                           <WindArrow deg={day.windDir} />
-                          {day.windDir}° ({windDirectionText(day.windDir)})
+                          {windDirectionText(day.windDir)}
                         </td>
                         <td style={{ padding: 4 }}>{weatherIcon(day.weatherCode)}</td>
                         <td style={{ padding: 4 }}>{day.precipitation}</td>
@@ -1109,6 +1217,20 @@ export default function Home() {
       {activeTab === "Dagens poster" && (
         <DagensPosterTab posts={elgposter} jegere={ELGJEGERE} />
       )}
+      {activeTab === "Kart" && (
+        <div style={{ margin: '0 auto', maxWidth: 900 }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+            <button onClick={() => setKartVisning('alle')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'alle' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'alle' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'alle' ? 600 : 400, cursor: 'pointer' }}>Vis alle poster</button>
+            <button onClick={() => setKartVisning('dagens')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'dagens' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'dagens' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'dagens' ? 600 : 400, cursor: 'pointer' }}>Vis kun dagens poster</button>
+          </div>
+          <MapSection
+            position={DEFAULT_POSITION}
+            posts={postsToShow}
+            setPosts={setElgposter}
+            {...(kartVisning === 'dagens' ? { dagensPosterInfo } : {})}
+          />
+        </div>
+      )}
       {activeTab === "Mørning" && (
         <section>
           <h2 style={{ fontSize: 20, marginBottom: 8 }}>Mørning</h2>
@@ -1116,29 +1238,36 @@ export default function Home() {
             <button onClick={() => setShowAdd(v => !v)} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Legg til ny logg</button>
           </div>
           {showAdd && (
-            <form onSubmit={e => { e.preventDefault(); if (newName.trim()) { setLoggers(l => [...l, { id: Date.now() + Math.random() + '', name: newName.trim(), lat: 60.7249, lng: 9.0365 }]); setNewName(''); setShowAdd(false); } }} style={{ marginBottom: 18, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <form onSubmit={e => { e.preventDefault(); if (newName.trim()) { setLoggers(l => [...l, {
+              id: Date.now() + Math.random() + '',
+              name: newName.trim(),
+              lat: 60.7249,
+              lng: 9.0365,
+              running: false,
+              accelerated: false,
+              target: 40,
+              offset: 0,
+              startTime: null,
+              simulatedElapsed: 0,
+            }]); setNewName(''); setShowAdd(false); } }} style={{ marginBottom: 18, display: 'flex', gap: 8, alignItems: 'center' }}>
               <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Navn på logg" style={{ padding: 7, borderRadius: 7, border: '1px solid #bbb', fontSize: 16, width: 180 }} required />
               <button type="submit" style={{ padding: '7px 16px', borderRadius: 7, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Opprett</button>
               <button type="button" onClick={() => { setShowAdd(false); setNewName(''); }} style={{ padding: '7px 16px', borderRadius: 7, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 15, cursor: 'pointer' }}>Avbryt</button>
             </form>
           )}
           {loggers.length === 0 && <div style={{ color: '#888', marginBottom: 12 }}>Ingen logger opprettet ennå.</div>}
-          {loggers.map(l => (
-            <DgLogger key={l.id} name={l.name} lat={l.lat} lng={l.lng} onDelete={() => setLoggers(loggers => loggers.filter(x => x.id !== l.id))} />
+          {loggers.map((l: Logger) => (
+            <DgLogger
+              key={l.id}
+              logger={l}
+              onChange={updated => setLoggers(loggers => loggers.map(x => x.id === l.id ? updated : x))}
+              onDelete={() => setLoggers((loggers: Logger[]) => loggers.filter((x: Logger) => x.id !== l.id))}
+            />
           ))}
         </section>
       )}
       {activeTab === "Elgposter" && (
         <ElgposterTab posts={posts} setPosts={setPosts} />
-      )}
-      {activeTab === "Kart" && (
-        <div style={{ margin: '0 auto', maxWidth: 900 }}>
-          <MapSection
-            position={DEFAULT_POSITION}
-            posts={elgposter}
-            setPosts={setElgposter}
-          />
-        </div>
       )}
     </div>
   );

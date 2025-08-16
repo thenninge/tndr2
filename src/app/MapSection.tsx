@@ -8,11 +8,12 @@ import type { Elgpost } from "./types";
 
 interface MapSectionProps {
   position: [number, number];
-  posts: Elgpost[];
+  posts: (Elgpost & { originalIdx?: number; visBlatt?: boolean })[];
   setPosts: React.Dispatch<React.SetStateAction<Elgpost[]>>;
+  dagensPosterInfo?: Array<{postIdx: number, jeger: string, callsign: string}>;
 }
 
-export default function MapSection({ position, posts }: MapSectionProps) {
+export default function MapSection({ position, posts, dagensPosterInfo }: MapSectionProps) {
   const [zoom, setZoom] = useState(16);
 
   // Subkomponent for å lytte på zoom-endringer
@@ -52,10 +53,11 @@ export default function MapSection({ position, posts }: MapSectionProps) {
         />
         {posts.map((post, idx) => {
           const isCabin = /hytte|elghytta/i.test(post.name);
-          const icon = getDotIcon(isCabin ? "green" : "red");
+          const icon = post.visBlatt ? getDotIcon('blue') : getDotIcon(isCabin ? 'green' : 'red');
+          const info = dagensPosterInfo?.find(d => d.postIdx === (post.originalIdx ?? idx));
           return (
             <Marker key={idx} position={[post.lat, post.lng]} icon={icon}>
-              <Popup>{post.name}</Popup>
+              <Popup>{info ? `${post.name} - ${info.callsign}` : post.name}</Popup>
             </Marker>
           );
         })}
