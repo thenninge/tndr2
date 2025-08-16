@@ -1017,16 +1017,6 @@ export default function Home() {
     fetchWeather();
   }, [weatherLat, weatherLng]);
 
-  useEffect(() => {
-    if (drawn.length > 0) {
-      fetch("/api/dagensposter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(drawn),
-      });
-    }
-  }, [drawn]);
-
   return (
     <div style={{ width: "100%", maxWidth: 600, margin: "0 auto", padding: 24 }}>
       <header style={{ marginBottom: 32 }}>
