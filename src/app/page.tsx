@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { useRef } from "react";
 import { ELGPOSTER } from "./elgposter";
 import { ELGJEGERE } from "./elgjegere";
-import type { Elgpost } from "./types";
 
 // Type-definisjoner for hele appen
 export type Post = {
@@ -379,6 +378,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
   const available = remaining.filter(i => selected[i]);
   const numSelected = selected.filter(Boolean).length;
   const jegereUtenPost = ELGJEGERE.filter(j => !drawn.some(d => d.jeger === j.navn));
+  const numIgjen = selected.filter(Boolean).length - drawn.length;
 
   return (
     <section style={{ display: 'flex', alignItems: 'flex-start', gap: 48 }}>
@@ -391,7 +391,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
           <button onClick={() => setShowAuto(v => !v)} style={{ padding: '6px 14px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Auto</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-          <div style={{ fontWeight: 500, marginRight: 4 }}>Hvem er du?</div>
+          
           <select value={selectedJeger} onChange={e => setSelectedJeger(e.target.value)} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #bbb', fontSize: 16, minWidth: 160 }}>
             <option value="">Velg navn</option>
             {jegereUtenPost.map(j => (
@@ -408,10 +408,10 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
         {showResult && winnerIdx !== null && (
           <div style={{ fontSize: 22, fontWeight: 700, color: '#2a7', marginBottom: 10 }}>Du har fått: {ELGPOSTER[winnerIdx].name}!</div>
         )}
-        {numSelected === 0 ? (
+        {numIgjen === 0 ? (
           <div style={{ color: '#888', marginTop: 10 }}>Ingen poster igjen å trekke.</div>
         ) : (
-          <div style={{ color: '#888', marginTop: 10 }}>{numSelected} poster igjen å trekke!</div>
+          <div style={{ color: '#888', marginTop: 10 }}>{numIgjen} poster igjen å trekke!</div>
         )}
         {expanderOpen && (
           <>
