@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
+import { FALL } from '../../fall';
 const FILE = 'data/fall.json';
 
 export async function GET() {
   try {
     const data = await fs.readFile(FILE, 'utf-8');
-    return NextResponse.json(JSON.parse(data));
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return NextResponse.json(parsed);
+    } else {
+      return NextResponse.json(FALL);
+    }
   } catch {
-    return NextResponse.json([]);
+    return NextResponse.json(FALL);
   }
 }
 
