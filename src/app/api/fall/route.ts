@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
-const FILE = '/tmp/fall.json';
+const FILE = 'data/fall.json';
 
 export async function GET() {
   try {
