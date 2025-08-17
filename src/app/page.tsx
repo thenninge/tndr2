@@ -1145,10 +1145,10 @@ export default function Home() {
 
   return (
     <>
-      <Head><title>Sandbekken Jaktlag</title></Head>
+      <Head><title>Sandbekken IT & Drift</title></Head>
       <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto", padding: "12px 4vw" }}>
         <header style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fafcff', marginBottom: 0 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sanbekken IT & Drift</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sandbekken IT & Drift</h1>
         </header>
         <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
           <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter"]} current={activeTab} onChange={setActiveTab} />
