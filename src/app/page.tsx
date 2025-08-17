@@ -5,6 +5,15 @@ import { useRef } from "react";
 import { ELGPOSTER } from "./elgposter";
 import { ELGJEGERE } from "./elgjegere";
 import Head from "next/head";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 // Type-definisjoner for hele appen
 export type Post = {
@@ -144,6 +153,7 @@ type Logger = {
 function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l: Logger) => void; onDelete?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<{ t: number; sum: number; temp: number }[]>([]);
+  const [estimate, setEstimate] = useState<{ t: number; sum: number }[]>([]);
   const [dgSum, setDgSum] = useState(0);
   const [currentTemp, setCurrentTemp] = useState<number | null>(null);
   const [estimatedDone, setEstimatedDone] = useState<Date | null>(null);
@@ -156,110 +166,172 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
     return () => clearInterval(timer);
   }, [logger.running, logger.accelerated, logger.simulatedElapsed]);
   useEffect(() => {
-    if (!logger.running || logger.startTime == null) return;
+    if (!logger.running || !logger.startTime) return;
+    let cancelled = false;
     setLoading(true);
     async function fetchTemps() {
-      const interval = logger.accelerated ? 60 : 15; // minutter
-      const start = new Date(logger.startTime!);
-      const now = logger.accelerated ? new Date(logger.startTime! + logger.simulatedElapsed * 60 * 1000) : new Date();
-      // Finn alle datoer som trengs
-      const dates: string[] = [];
-      const d = new Date(start);
-      while (d <= now) {
-        dates.push(d.toISOString().slice(0, 10));
-        d.setDate(d.getDate() + 1);
-      }
-      // Hent alle temperaturer for alle datoer (archive for fortid, forecast for fremtid)
-      const temps: { time: string; temp: number }[] = [];
-      for (const date of dates) {
-        const isPast = new Date(date) < new Date(new Date().toISOString().slice(0, 10));
-        let url = '';
-        if (isPast) {
-          url = `https://archive-api.open-meteo.com/v1/archive?latitude=${logger.lat}&longitude=${logger.lng}&start_date=${date}&end_date=${date}&hourly=temperature_2m`;
-        } else {
-          url = `https://api.open-meteo.com/v1/forecast?latitude=${logger.lat}&longitude=${logger.lng}&hourly=temperature_2m&timezone=auto&start_date=${date}&end_date=${date}`;
+      try {
+        const interval = 60; // 1 time
+        const start = new Date(logger.startTime!);
+        const now = logger.accelerated
+          ? new Date(logger.startTime! + logger.simulatedElapsed * 60 * 1000)
+          : new Date();
+        // --- Lag liste med datoer ---
+        const dates: string[] = [];
+        const d = new Date(start);
+        let dateGuard = 0;
+        while (d <= now && dateGuard++ < 40) { // maks 40 dager
+          dates.push(d.toISOString().slice(0, 10));
+          d.setDate(d.getDate() + 1);
         }
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.hourly?.time && data.hourly?.temperature_2m) {
-          for (let i = 0; i < data.hourly.time.length; ++i) {
-            temps.push({ time: data.hourly.time[i], temp: data.hourly.temperature_2m[i] });
+        // legg til 2 dager til fremover for forecast
+        const d2 = new Date(now);
+        d2.setDate(d2.getDate() + 2);
+        while (dates[dates.length - 1] < d2.toISOString().slice(0, 10) && dateGuard++ < 42) {
+          const nextDay = new Date(dates[dates.length - 1] + "T00:00:00Z");
+          if (isNaN(nextDay.getTime())) break; // unngå uendelig loop
+          dates.push(nextDay.toISOString().slice(0, 10));
+        }
+        // --- Hent alle temperaturer parallelt ---
+        const fetches = dates.map(date => {
+          const today = new Date().toISOString().slice(0, 10);
+          const isPast = new Date(date) < new Date(today);
+          const url = isPast
+            ? `https://archive-api.open-meteo.com/v1/archive?latitude=${logger.lat}&longitude=${logger.lng}&start_date=${date}&end_date=${date}&hourly=temperature_2m`
+            : `https://api.open-meteo.com/v1/forecast?latitude=${logger.lat}&longitude=${logger.lng}&hourly=temperature_2m&timezone=auto&start_date=${date}&end_date=${date}`;
+          return fetch(url).then(r => r.json()).catch(() => null);
+        });
+        const results = await Promise.all(fetches);
+        // --- Pakk ut temperaturene ---
+        const temps: { time: string; temp: number }[] = [];
+        results.forEach(data => {
+          if (data?.hourly?.time && data?.hourly?.temperature_2m) {
+            for (let i = 0; i < data.hourly.time.length; ++i) {
+              temps.push({ time: data.hourly.time[i], temp: data.hourly.temperature_2m[i] });
+            }
           }
+        });
+        if (cancelled) return;
+        // --- Bygg intervaller (hver time) ---
+        const intervals: { t: number; temp: number }[] = [];
+        let tMin = 0;
+        let t = new Date(start);
+        while (t <= now) {
+          const dateStr = t.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+          const found = temps.find(x => x.time.startsWith(dateStr));
+          const temp = found
+            ? Math.max(found.temp + logger.offset, 0)
+            : Math.max(10 + logger.offset, 0);
+          intervals.push({ t: tMin, temp });
+          tMin += interval;
+          t = new Date(t.getTime() + interval * 60 * 1000);
         }
-      }
-      // Bygg temperatur-array for alle intervaller
-      const intervals: { t: number; temp: number }[] = [];
-      let tMin = 0;
-      let t = new Date(start);
-      while (t <= now) {
-        // Finn nærmeste time
-        const hour = t.getHours();
-        const dateStr = t.toISOString().slice(0, 13);
-        const found = temps.find(x => x.time.startsWith(dateStr));
-        const temp = found ? found.temp + logger.offset : 10 + logger.offset;
-        intervals.push({ t: tMin, temp });
-        tMin += interval;
-        t = new Date(t.getTime() + interval * 60 * 1000);
-      }
-      // Summer døgngrader og stopp når target er nådd
-      let sum = 0;
-      let doneIdx = -1;
-      const hist = intervals.map((iv, i) => {
-        const dg = iv.temp / (logger.accelerated ? 24 : 96);
-        sum += dg;
-        if (doneIdx === -1 && sum >= logger.target) doneIdx = i;
-        return { t: iv.t, sum, temp: iv.temp };
-      });
-      setHistory(hist);
-      setDgSum(sum);
-      setCurrentTemp(intervals.length > 0 ? intervals[intervals.length - 1].temp : null);
-      if (doneIdx !== -1) {
-        const doneTime = new Date(start.getTime() + hist[doneIdx].t * 60 * 1000);
-        setEstimatedDone(doneTime);
-      } else {
-        // Simuler videre med siste forecast-temp
+        // --- Akkumuler sum løpende ---
+        let sum = 0;
+        const hist = intervals.map((iv) => {
+          sum += iv.temp / 24;
+          return { t: iv.t, temp: iv.temp, sum, startTime: start.getTime() };
+        });
+        // --- Forecast videre (estimate) ---
         let simSum = sum;
         let simT = intervals.length > 0 ? intervals[intervals.length - 1].t : 0;
-        let simTime = intervals.length > 0 ? new Date(start.getTime() + simT * 60 * 1000) : new Date(start);
-        const simTemp = intervals.length > 0 ? intervals[intervals.length - 1].temp : 10 + logger.offset;
-        while (simSum < logger.target && simT < 60 * 24 * 365) { // maks 1 år
-          simSum += simTemp / (logger.accelerated ? 24 : 96);
-          simT += interval;
-          simTime = new Date(simTime.getTime() + interval * 60 * 1000);
+        let simTime = intervals.length > 0
+          ? new Date(start.getTime() + simT * 60 * 1000)
+          : new Date(start);
+        const simTemp = intervals.length > 0
+          ? intervals[intervals.length - 1].temp
+          : Math.max(10 + logger.offset, 0);
+        const estimate: { t: number; sum: number; startTime: number }[] = [];
+        let guard = 0;
+        while (simSum < logger.target && simT < 24 * 365 && guard++ < 24 * 365) {
+          simSum += simTemp / 24;
+          simT += 60;
+          simTime = new Date(simTime.getTime() + 60 * 60 * 1000);
+          estimate.push({ t: simT, sum: simSum, startTime: start.getTime() });
         }
-        setEstimatedDone(simTime);
+        if (estimate.length > 0) {
+          setEstimatedDone(simTime);
+        }
+        setHistory(hist);
+        setEstimate(estimate);
+        setDgSum(sum);
+        setCurrentTemp(intervals.length > 0 ? intervals.at(-1)!.temp : null);
+        setLoading(false);
+      } catch (err) {
+        console.error("fetchTemps error", err);
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
     }
     fetchTemps();
-  }, [logger]);
+    return () => {
+      cancelled = true;
+    };
+  }, [logger.running, logger.startTime, logger.simulatedElapsed, logger.lat, logger.lng, logger.offset, logger.target]);
   function handleReset() {
     onChange({ ...logger, running: false, startTime: null, simulatedElapsed: 0 });
     setHistory([]); setDgSum(0); setCurrentTemp(null);
   }
-  function DgGraph({ data, target = 40 }: { data: { t: number; sum: number }[]; target?: number }) {
-    if (data.length === 0) return <div>Ingen data ennå.</div>;
-    const width = 400, height = 180, pad = 32;
-    const maxX = Math.max(...data.map(d => d.t), 96 * 15);
-    const maxY = Math.max(...data.map(d => d.sum), target);
-    const points = data.map(d => {
-      const x = pad + (d.t / maxX) * (width - 2 * pad);
-      const y = height - pad - (d.sum / maxY) * (height - 2 * pad);
-      return `${x},${y}`;
-    }).join(' ');
-    const targetY = height - pad - (target / maxY) * (height - 2 * pad);
+  function DGChart({ history, estimate, startTime, target }: { history: { t: number; sum: number; startTime?: number }[]; estimate: { t: number; sum: number; startTime?: number }[]; startTime: number; target: number }) {
+    // Slå sammen for x-akse
+    const data = [
+      ...history.map(h => ({ t: h.t, real: h.sum, est: null, startTime: h.startTime ?? startTime })),
+      ...estimate.slice(history.length).map(e => ({ t: e.t, real: null, est: e.sum, startTime: e.startTime ?? startTime })),
+    ];
     return (
-      <svg width={width} height={height} style={{ background: '#f8f8ff', borderRadius: 12, border: '1px solid #ddd', marginBottom: 12 }}>
-        <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#888" strokeWidth={1} />
-        <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#888" strokeWidth={1} />
-        <line x1={pad} y1={targetY} x2={width - pad} y2={targetY} stroke="#e55" strokeDasharray="4 4" />
-        <polyline fill="none" stroke="#2a7" strokeWidth={2.5} points={points} />
-        <text x={pad - 8} y={height - pad + 16} fontSize={13} textAnchor="end">0</text>
-        <text x={pad - 8} y={targetY - 2} fontSize={13} textAnchor="end">{target}</text>
-        <text x={pad - 8} y={pad + 6} fontSize={13} textAnchor="end">{maxY.toFixed(1)}</text>
-        <text x={pad} y={height - pad + 24} fontSize={13} textAnchor="middle">0</text>
-        <text x={width - pad} y={height - pad + 24} fontSize={13} textAnchor="middle">{maxX} min</text>
-      </svg>
+      <LineChart width={400} height={180} data={data} margin={{ left: 16, right: 16, top: 16, bottom: 16 }}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis
+          dataKey="t"
+          tickCount={6}
+          interval="preserveStartEnd"
+          tickFormatter={(t) => {
+            const start = new Date(data[0]?.startTime ?? startTime);
+            const d = new Date(start.getTime() + t * 60 * 1000);
+            return d.toLocaleString("no-NO", {
+              weekday: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+          }}
+          label={{ value: "Tid", position: "insideBottomRight", offset: -8 }}
+        />
+        <YAxis label={{ value: "Døgngrader", angle: -90, position: "insideLeft" }} />
+        <Tooltip />
+        <Legend />
+        {/* Reell linje */}
+        <Line
+          type="monotone"
+          dataKey="real"
+          stroke="#0077cc"
+          strokeWidth={2}
+          dot={false}
+          name="Reell akkumulert DG"
+          isAnimationActive={false}
+        />
+        {/* Estimat-linje (stiplet) */}
+        <Line
+          type="monotone"
+          dataKey="est"
+          stroke="#ff6600"
+          strokeWidth={2}
+          strokeDasharray="5 5"
+          dot={false}
+          name="Estimert akkumulert DG"
+          isAnimationActive={false}
+        />
+        {/* Target-linje */}
+        {target && (
+          <Line
+            type="stepAfter"
+            dataKey={() => target}
+            stroke="#e55"
+            strokeWidth={1}
+            strokeDasharray="2 2"
+            dot={false}
+            name="Target"
+          />
+        )}
+      </LineChart>
     );
   }
   return (
@@ -279,14 +351,6 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
         </label>
         <label style={{ fontSize: 15, display: 'flex', alignItems: 'center' }}>
           Temp-offset:
-          <button
-            type="button"
-            onClick={() => onChange({ ...logger, offset: Math.max(-10, logger.offset - 1) })}
-            style={{ marginLeft: 6, padding: '2px 8px', borderRadius: 6, border: '1px solid #bbb', background: '#f4f4f4', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
-            aria-label="Mindre offset"
-          >
-            &#8595;
-          </button>
           <input
             type="number"
             value={logger.offset}
@@ -296,6 +360,14 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
             onChange={e => onChange({ ...logger, offset: Number(e.target.value) })}
             style={{ marginLeft: 6, width: 60, padding: 3, borderRadius: 6, border: '1px solid #ccc', textAlign: 'center' }}
           />
+          <button
+            type="button"
+            onClick={() => onChange({ ...logger, offset: Math.max(-10, logger.offset - 1) })}
+            style={{ marginLeft: 6, padding: '2px 8px', borderRadius: 6, border: '1px solid #bbb', background: '#f4f4f4', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+            aria-label="Mindre offset"
+          >
+            &#8595;
+          </button>
           <button
             type="button"
             onClick={() => onChange({ ...logger, offset: Math.min(10, logger.offset + 1) })}
@@ -331,7 +403,7 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
             })()}
           </div>
         )}
-        <DgGraph data={history} target={logger.target} />
+        <DGChart history={history} estimate={estimate} startTime={logger.startTime ?? 0} target={logger.target} />
         <div style={{ fontSize: 13, color: '#888' }}>Temperatur: {currentTemp !== null ? `${currentTemp.toFixed(1)}°C` : 'ukjent'} (offset: {logger.offset >= 0 ? '+' : ''}{logger.offset})</div>
       </>}
     </div>
@@ -1139,39 +1211,6 @@ export default function Home() {
     setRunning(false);
     setDgSum(0);
     setDgHistory([]);
-  }
-
-  // SVG-graf for døgngrad
-  function DgGraph({ data, target = 40 }: { data: { t: number; sum: number }[]; target?: number }) {
-    if (data.length === 0) return <div>Ingen data ennå.</div>;
-    const width = 400, height = 180, pad = 32;
-    const maxX = Math.max(...data.map(d => d.t), 96 * 15); // minst ett døgn
-    const maxY = Math.max(...data.map(d => d.sum), target);
-    const points = data.map(d => {
-      const x = pad + (d.t / maxX) * (width - 2 * pad);
-      const y = height - pad - (d.sum / maxY) * (height - 2 * pad);
-      return `${x},${y}`;
-    }).join(' ');
-    // Target-linje
-    const targetY = height - pad - (target / maxY) * (height - 2 * pad);
-    return (
-      <svg width={width} height={height} style={{ background: '#f8f8ff', borderRadius: 12, border: '1px solid #ddd', marginBottom: 12 }}>
-        {/* Akser */}
-        <line x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} stroke="#888" strokeWidth={1} />
-        <line x1={pad} y1={pad} x2={pad} y2={height - pad} stroke="#888" strokeWidth={1} />
-        {/* Target-linje */}
-        <line x1={pad} y1={targetY} x2={width - pad} y2={targetY} stroke="#e55" strokeDasharray="4 4" />
-        {/* Graf-linje */}
-        <polyline fill="none" stroke="#2a7" strokeWidth={2.5} points={points} />
-        {/* Y-akse labels */}
-        <text x={pad - 8} y={height - pad + 16} fontSize={13} textAnchor="end">0</text>
-        <text x={pad - 8} y={targetY - 2} fontSize={13} textAnchor="end">{target}</text>
-        <text x={pad - 8} y={pad + 6} fontSize={13} textAnchor="end">{maxY.toFixed(1)}</text>
-        {/* X-akse labels */}
-        <text x={pad} y={height - pad + 24} fontSize={13} textAnchor="middle">0</text>
-        <text x={width - pad} y={height - pad + 24} fontSize={13} textAnchor="middle">{maxX} min</text>
-      </svg>
-    );
   }
 
   // Finn ELGHYTTA-posisjon
