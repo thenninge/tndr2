@@ -767,6 +767,29 @@ function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: React.Disp
     setPosts(p=>[...p,{nr:Number(newNr),name:newName.trim(),lat:Number(newLat),lng:Number(newLng),omrade:newOmrade.trim()}]);
     setShowAdd(false); setNewName(''); setNewLat(''); setNewLng(''); setNewNr(''); setNewOmrade('');
   }
+  // --- Edit-modus ---
+  const [editIdx, setEditIdx] = useState<number|null>(null);
+  const [editPost, setEditPost] = useState<Post|null>(null);
+  function handleEdit(idx: number) {
+    setEditIdx(idx);
+    setEditPost({ ...sortedPosts[idx] });
+  }
+  function handleEditChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!editPost) return;
+    const { name, value } = e.target;
+    setEditPost({ ...editPost, [name]: name === 'nr' || name === 'lat' || name === 'lng' ? Number(value) : value });
+  }
+  function handleUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    if (editIdx === null || !editPost) return;
+    setPosts(posts => posts.map((p, i) => i === posts.indexOf(sortedPosts[editIdx]) ? editPost : p));
+    setEditIdx(null);
+    setEditPost(null);
+  }
+  function handleCancelEdit() {
+    setEditIdx(null);
+    setEditPost(null);
+  }
   return (
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Elgposter</h2>
@@ -802,21 +825,33 @@ function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: React.Disp
             <th style={{ textAlign: 'left', padding: 4 }}>Nr</th>
             <th style={{ textAlign: 'left', padding: 4 }}>Navn</th>
             <th style={{ textAlign: 'left', padding: 4 }}>Område</th>
-            <th style={{ textAlign: 'left', padding: 4 }}>Avstand fra hytta (m)</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {sortedPosts.map((post, idx) => (
             <tr key={post.nr+post.name+post.lat+post.lng}>
-              <td style={{ padding: 4 }}>{post.nr}</td>
-              <td style={{ padding: 4 }}>{post.name}</td>
-              <td style={{ padding: 4 }}>{post.omrade}</td>
-              <td style={{ padding: 4 }}>{ELGHYTTA ? Math.round(distFromHytta(post)) : '–'}</td>
-              <td style={{ padding: 4 }}>
-                <button onClick={()=>handleDelete(posts.indexOf(post))} style={{ padding: '3px 10px', borderRadius: 7, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 14, cursor: 'pointer' }}>Slett</button>
-                <button onClick={()=>handleDelete(posts.indexOf(post))} style={{ padding: '3px 10px', borderRadius: 7, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 14, cursor: 'pointer' }}>Endre</button>
-              </td>
+              {editIdx === idx && editPost ? (
+                <>
+                  <td><input type="number" name="nr" value={editPost.nr} onChange={handleEditChange} style={{ width: 60 }} /></td>
+                  <td><input type="text" name="name" value={editPost.name} onChange={handleEditChange} style={{ width: 120 }} /></td>
+                  <td><input type="text" name="omrade" value={editPost.omrade} onChange={handleEditChange} style={{ width: 120 }} /></td>
+                  <td>
+                    <button onClick={handleUpdate} style={{ padding: '3px 10px', borderRadius: 7, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 14, cursor: 'pointer', marginRight: 4 }}>Lagre</button>
+                    <button onClick={handleCancelEdit} style={{ padding: '3px 10px', borderRadius: 7, background: '#eee', border: '1px solid #bbb', fontSize: 14, cursor: 'pointer' }}>Avbryt</button>
+                  </td>
+                </>
+              ) : (
+                <>
+                  <td style={{ padding: 4 }}>{post.nr}</td>
+                  <td style={{ padding: 4 }}>{post.name}</td>
+                  <td style={{ padding: 4 }}>{post.omrade}</td>
+                  <td style={{ padding: 4 }}>
+                    <button onClick={()=>handleDelete(posts.indexOf(post))} style={{ padding: '3px 10px', borderRadius: 7, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 14, cursor: 'pointer' }}>Slett</button>
+                    <button onClick={()=>handleEdit(idx)} style={{ padding: '3px 10px', borderRadius: 7, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 14, cursor: 'pointer', marginLeft: 4 }}>Endre</button>
+                  </td>
+                </>
+              )}
             </tr>
           ))}
         </tbody>
