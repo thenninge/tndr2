@@ -1144,7 +1144,7 @@ export default function Home() {
       <header style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fafcff', marginBottom: 0 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sanbekken IT & Drift</h1>
       </header>
-      <div style={{ position: 'sticky', top: 64, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
+      <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
         <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter"]} current={activeTab} onChange={setActiveTab} />
       </div>
       {activeTab === "Vær" && (
