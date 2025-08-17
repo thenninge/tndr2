@@ -1144,150 +1144,152 @@ export default function Home() {
   }, [loggers]);
 
   return (
-    <Head><title>Sandbekken Jaktlag</title></Head>
-    <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto", padding: "12px 4vw" }}>
-      <header style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fafcff', marginBottom: 0 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sanbekken IT & Drift</h1>
-      </header>
-      <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
-        <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter"]} current={activeTab} onChange={setActiveTab} />
-      </div>
-      {activeTab === "Vær" && (
-        <section>
-          <h2 style={{ fontSize: 20, marginBottom: 8 }}>Vær for de neste 6 timene (Elghytta)</h2>
-          {hourly.length === 0 ? (
-            <div>Laster værmelding...</div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", padding: 4 }}>Tid</th>
-                  <th style={{ textAlign: "left", padding: 4 }}>Temp</th>
-                  <th style={{ textAlign: "left", padding: 4 }}>Vind (m/s)</th>
-                  <th style={{ textAlign: "left", padding: 4 }}>Retning</th>
-                  <th style={{ textAlign: "left", padding: 4 }}>Vær</th>
-                  <th style={{ textAlign: "left", padding: 4 }}>Nedbør (mm)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hourly.map((h) => (
-                  <tr key={h.time}>
-                    <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</td>
-                    <td style={{ padding: 4 }}>{h.temp}°C</td>
-                    <td style={{ padding: 4 }}>{h.windSpeed}</td>
-                    <td style={{ padding: 4 }}>
-                      <WindArrow deg={h.windDir} />
-                      {windDirectionText(h.windDir)}
-                    </td>
-                    <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
-                    <td style={{ padding: 4 }}>{h.precipitation}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <div style={{ marginTop: 24 }}>
-            <button onClick={() => setExpand((v) => !v)} style={{ padding: "6px 14px", fontSize: 15, borderRadius: 8, cursor: "pointer", marginBottom: 8 }}>
-              {expand ? "Skjul 3-dagersvarsel" : "Vis 3-dagersvarsel"}
-            </button>
-            {expand && (
-              <div>
-                <h2 style={{ fontSize: 18, marginBottom: 8 }}>Værmelding neste 3 dager</h2>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left", padding: 4 }}>Dato</th>
-                      <th style={{ textAlign: "left", padding: 4 }}>Min</th>
-                      <th style={{ textAlign: "left", padding: 4 }}>Max</th>
-                      <th style={{ textAlign: "left", padding: 4 }}>Vind (m/s)</th>
-                      <th style={{ textAlign: "left", padding: 4 }}>Retning</th>
-                      <th style={{ textAlign: "left", padding: 4 }}>Vær</th>
-                      <th style={{ textAlign: "left", padding: 4 }}>Nedbør (mm)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {forecast.map((day) => (
-                      <tr key={day.date}>
-                        <td style={{ padding: 4 }}>{day.date}</td>
-                        <td style={{ padding: 4 }}>{day.tempMin}°C</td>
-                        <td style={{ padding: 4 }}>{day.tempMax}°C</td>
-                        <td style={{ padding: 4 }}>{day.windSpeed}</td>
-                        <td style={{ padding: 4 }}>
-                          <WindArrow deg={day.windDir} />
-                          {windDirectionText(day.windDir)}
-                        </td>
-                        <td style={{ padding: 4 }}>{weatherIcon(day.weatherCode)}</td>
-                        <td style={{ padding: 4 }}>{day.precipitation}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-      {activeTab === "Postvær" && (
-        <PostvaerTab />
-      )}
-      {activeTab === "Trekk din post!" && (
-        <TrekkDinPost posts={elgposter} trekkData={trekkData} setTrekkData={setTrekkData} />
-      )}
-      {activeTab === "Dagens poster" && (
-        <DagensPosterTab posts={elgposter} jegere={ELGJEGERE} />
-      )}
-      {activeTab === "Kart" && (
-        <div style={{ margin: '0 auto', maxWidth: 900 }}>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-            <button onClick={() => setKartVisning('alle')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'alle' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'alle' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'alle' ? 600 : 400, cursor: 'pointer' }}>Vis alle poster</button>
-            <button onClick={() => setKartVisning('dagens')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'dagens' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'dagens' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'dagens' ? 600 : 400, cursor: 'pointer' }}>Vis kun dagens poster</button>
-          </div>
-          <MapSection
-            position={DEFAULT_POSITION}
-            posts={postsToShow}
-            setPosts={setElgposter}
-            {...(kartVisning === 'dagens' ? { dagensPosterInfo } : {})}
-          />
+    <>
+      <Head><title>Sandbekken Jaktlag</title></Head>
+      <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto", padding: "12px 4vw" }}>
+        <header style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fafcff', marginBottom: 0 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sanbekken IT & Drift</h1>
+        </header>
+        <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
+          <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter"]} current={activeTab} onChange={setActiveTab} />
         </div>
-      )}
-      {activeTab === "Mørning" && (
-        <section>
-          <h2 style={{ fontSize: 20, marginBottom: 8 }}>Mørning</h2>
-          <div style={{ marginBottom: 18 }}>
-            <button onClick={() => setShowAdd(v => !v)} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Legg til ny logg</button>
-          </div>
-          {showAdd && (
-            <form onSubmit={e => { e.preventDefault(); if (newName.trim()) { setLoggers(l => [...l, {
-              id: Date.now() + Math.random() + '',
-              name: newName.trim(),
-              lat: 60.7249,
-              lng: 9.0365,
-              running: false,
-              accelerated: false,
-              target: 40,
-              offset: 0,
-              startTime: null,
-              simulatedElapsed: 0,
-            }]); setNewName(''); setShowAdd(false); } }} style={{ marginBottom: 18, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Navn på logg" style={{ padding: 7, borderRadius: 7, border: '1px solid #bbb', fontSize: 16, width: 180 }} required />
-              <button type="submit" style={{ padding: '7px 16px', borderRadius: 7, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Opprett</button>
-              <button type="button" onClick={() => { setShowAdd(false); setNewName(''); }} style={{ padding: '7px 16px', borderRadius: 7, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 15, cursor: 'pointer' }}>Avbryt</button>
-            </form>
-          )}
-          {loggers.length === 0 && <div style={{ color: '#888', marginBottom: 12 }}>Ingen logger opprettet ennå.</div>}
-          {loggers.map((l: Logger) => (
-            <DgLogger
-              key={l.id}
-              logger={l}
-              onChange={updated => setLoggers(loggers => loggers.map(x => x.id === l.id ? updated : x))}
-              onDelete={() => setLoggers((loggers: Logger[]) => loggers.filter((x: Logger) => x.id !== l.id))}
+        {activeTab === "Vær" && (
+          <section>
+            <h2 style={{ fontSize: 20, marginBottom: 8 }}>Vær for de neste 6 timene (Elghytta)</h2>
+            {hourly.length === 0 ? (
+              <div>Laster værmelding...</div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: 4 }}>Tid</th>
+                    <th style={{ textAlign: "left", padding: 4 }}>Temp</th>
+                    <th style={{ textAlign: "left", padding: 4 }}>Vind (m/s)</th>
+                    <th style={{ textAlign: "left", padding: 4 }}>Retning</th>
+                    <th style={{ textAlign: "left", padding: 4 }}>Vær</th>
+                    <th style={{ textAlign: "left", padding: 4 }}>Nedbør (mm)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hourly.map((h) => (
+                    <tr key={h.time}>
+                      <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</td>
+                      <td style={{ padding: 4 }}>{h.temp}°C</td>
+                      <td style={{ padding: 4 }}>{h.windSpeed}</td>
+                      <td style={{ padding: 4 }}>
+                        <WindArrow deg={h.windDir} />
+                        {windDirectionText(h.windDir)}
+                      </td>
+                      <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
+                      <td style={{ padding: 4 }}>{h.precipitation}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div style={{ marginTop: 24 }}>
+              <button onClick={() => setExpand((v) => !v)} style={{ padding: "6px 14px", fontSize: 15, borderRadius: 8, cursor: "pointer", marginBottom: 8 }}>
+                {expand ? "Skjul 3-dagersvarsel" : "Vis 3-dagersvarsel"}
+              </button>
+              {expand && (
+                <div>
+                  <h2 style={{ fontSize: 18, marginBottom: 8 }}>Værmelding neste 3 dager</h2>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: 4 }}>Dato</th>
+                        <th style={{ textAlign: "left", padding: 4 }}>Min</th>
+                        <th style={{ textAlign: "left", padding: 4 }}>Max</th>
+                        <th style={{ textAlign: "left", padding: 4 }}>Vind (m/s)</th>
+                        <th style={{ textAlign: "left", padding: 4 }}>Retning</th>
+                        <th style={{ textAlign: "left", padding: 4 }}>Vær</th>
+                        <th style={{ textAlign: "left", padding: 4 }}>Nedbør (mm)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {forecast.map((day) => (
+                        <tr key={day.date}>
+                          <td style={{ padding: 4 }}>{day.date}</td>
+                          <td style={{ padding: 4 }}>{day.tempMin}°C</td>
+                          <td style={{ padding: 4 }}>{day.tempMax}°C</td>
+                          <td style={{ padding: 4 }}>{day.windSpeed}</td>
+                          <td style={{ padding: 4 }}>
+                            <WindArrow deg={day.windDir} />
+                            {windDirectionText(day.windDir)}
+                          </td>
+                          <td style={{ padding: 4 }}>{weatherIcon(day.weatherCode)}</td>
+                          <td style={{ padding: 4 }}>{day.precipitation}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+        {activeTab === "Postvær" && (
+          <PostvaerTab />
+        )}
+        {activeTab === "Trekk din post!" && (
+          <TrekkDinPost posts={elgposter} trekkData={trekkData} setTrekkData={setTrekkData} />
+        )}
+        {activeTab === "Dagens poster" && (
+          <DagensPosterTab posts={elgposter} jegere={ELGJEGERE} />
+        )}
+        {activeTab === "Kart" && (
+          <div style={{ margin: '0 auto', maxWidth: 900 }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+              <button onClick={() => setKartVisning('alle')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'alle' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'alle' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'alle' ? 600 : 400, cursor: 'pointer' }}>Vis alle poster</button>
+              <button onClick={() => setKartVisning('dagens')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'dagens' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'dagens' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'dagens' ? 600 : 400, cursor: 'pointer' }}>Vis kun dagens poster</button>
+            </div>
+            <MapSection
+              position={DEFAULT_POSITION}
+              posts={postsToShow}
+              setPosts={setElgposter}
+              {...(kartVisning === 'dagens' ? { dagensPosterInfo } : {})}
             />
-          ))}
-        </section>
-      )}
-      {activeTab === "Elgposter" && (
-        <ElgposterTab posts={posts} setPosts={setPosts} />
-      )}
-    </div>
+          </div>
+        )}
+        {activeTab === "Mørning" && (
+          <section>
+            <h2 style={{ fontSize: 20, marginBottom: 8 }}>Mørning</h2>
+            <div style={{ marginBottom: 18 }}>
+              <button onClick={() => setShowAdd(v => !v)} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Legg til ny logg</button>
+            </div>
+            {showAdd && (
+              <form onSubmit={e => { e.preventDefault(); if (newName.trim()) { setLoggers(l => [...l, {
+                id: Date.now() + Math.random() + '',
+                name: newName.trim(),
+                lat: 60.7249,
+                lng: 9.0365,
+                running: false,
+                accelerated: false,
+                target: 40,
+                offset: 0,
+                startTime: null,
+                simulatedElapsed: 0,
+              }]); setNewName(''); setShowAdd(false); } }} style={{ marginBottom: 18, display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Navn på logg" style={{ padding: 7, borderRadius: 7, border: '1px solid #bbb', fontSize: 16, width: 180 }} required />
+                <button type="submit" style={{ padding: '7px 16px', borderRadius: 7, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Opprett</button>
+                <button type="button" onClick={() => { setShowAdd(false); setNewName(''); }} style={{ padding: '7px 16px', borderRadius: 7, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 15, cursor: 'pointer' }}>Avbryt</button>
+              </form>
+            )}
+            {loggers.length === 0 && <div style={{ color: '#888', marginBottom: 12 }}>Ingen logger opprettet ennå.</div>}
+            {loggers.map((l: Logger) => (
+              <DgLogger
+                key={l.id}
+                logger={l}
+                onChange={updated => setLoggers(loggers => loggers.map(x => x.id === l.id ? updated : x))}
+                onDelete={() => setLoggers((loggers: Logger[]) => loggers.filter((x: Logger) => x.id !== l.id))}
+              />
+            ))}
+          </section>
+        )}
+        {activeTab === "Elgposter" && (
+          <ElgposterTab posts={posts} setPosts={setPosts} />
+        )}
+      </div>
+    </>
   );
 }
