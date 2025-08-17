@@ -216,7 +216,7 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
         const doneTime = new Date(start.getTime() + hist[doneIdx].t * 60 * 1000);
         setEstimatedDone(doneTime);
       } else {
-        // Hvis target ikke er nådd, simuler videre fremover med siste kjente/forecast-temp til target nås, og sett estimatedDone til dette tidspunktet.
+        // Hvis target ikke er nådd, simuler videre fremover med siste forecast-temp til target nås, og sett estimatedDone til dette tidspunktet.
         setEstimatedDone(null);
       }
       setLoading(false);
