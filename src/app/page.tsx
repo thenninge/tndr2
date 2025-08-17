@@ -277,9 +277,33 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
           Target døgngrader:
           <input type="number" value={logger.target} min={1} max={100} onChange={e => onChange({ ...logger, target: Number(e.target.value) })} style={{ marginLeft: 6, width: 60, padding: 3, borderRadius: 6, border: '1px solid #ccc' }} />
         </label>
-        <label style={{ fontSize: 15 }}>
+        <label style={{ fontSize: 15, display: 'flex', alignItems: 'center' }}>
           Temp-offset:
-          <input type="number" value={logger.offset} min={-10} max={10} step={1} onChange={e => onChange({ ...logger, offset: Number(e.target.value) })} style={{ marginLeft: 6, width: 60, padding: 3, borderRadius: 6, border: '1px solid #ccc' }} />
+          <button
+            type="button"
+            onClick={() => onChange({ ...logger, offset: Math.max(-10, logger.offset - 1) })}
+            style={{ marginLeft: 6, padding: '2px 8px', borderRadius: 6, border: '1px solid #bbb', background: '#f4f4f4', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+            aria-label="Mindre offset"
+          >
+            &#8595;
+          </button>
+          <input
+            type="number"
+            value={logger.offset}
+            min={-10}
+            max={10}
+            step={1}
+            onChange={e => onChange({ ...logger, offset: Number(e.target.value) })}
+            style={{ marginLeft: 6, width: 60, padding: 3, borderRadius: 6, border: '1px solid #ccc', textAlign: 'center' }}
+          />
+          <button
+            type="button"
+            onClick={() => onChange({ ...logger, offset: Math.min(10, logger.offset + 1) })}
+            style={{ marginLeft: 6, padding: '2px 8px', borderRadius: 6, border: '1px solid #bbb', background: '#f4f4f4', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+            aria-label="Større offset"
+          >
+            &#8593;
+          </button>
         </label>
       </div>
       <div style={{ marginBottom: 8 }}>
@@ -326,8 +350,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
   const [selectedJeger, setSelectedJeger] = useState('');
   const [sortBy, setSortBy] = useState('alfabetisk');
   const [showAuto, setShowAuto] = useState(false);
-  const [selectedJegere, setSelectedJegere] = useState(() => ELGJEGERE.map(() => true));
-  const [autoResult, setAutoResult] = useState<{ post: Post; jeger: Jeger }[]>([]);
+  const [autoJegere, setAutoJegere] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState<string | null>(null);
 
@@ -376,24 +399,6 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
     setSelectedJeger('');
   }
 
-  function handleToggleJeger(idx: number) {
-    setSelectedJegere(sel => sel.map((v, i) => i === idx ? !v : v));
-  }
-  function handleTrekkAuto() {
-    // Kun valgte poster
-    const valgtePoster = posts.filter((_, i) => selected[i]);
-    const valgteJegere = ELGJEGERE.filter((_, i) => selectedJegere[i]);
-    const ledigePoster = [...valgtePoster];
-    const trekk: { post: Post; jeger: Jeger }[] = [];
-    valgteJegere.forEach(jeger => {
-      if (ledigePoster.length === 0) return;
-      const idx = Math.floor(Math.random() * ledigePoster.length);
-      const post = ledigePoster.splice(idx, 1)[0];
-      trekk.push({ post, jeger });
-    });
-    setAutoResult(trekk);
-  }
-
   async function sendToDagensPoster() {
     setSending(true);
     setSendMsg(null);
@@ -414,12 +419,30 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
 
   // Rett før {showAuto && ( ... )} :
   const antallValgtePoster = selected.filter(Boolean).length;
-  const antallValgteJegere = selectedJegere.filter(Boolean).length;
+  const antallValgteJegere = autoJegere.length;
+
+  // Håndterer "OK" for Auto-assign
+  const handleAutoAssign = () => {
+    const valgtePoster = ELGPOSTER.map((_, idx) => selected[idx] && remaining.includes(idx) ? idx : null).filter(idx => idx !== null) as number[];
+    if (autoJegere.length !== valgtePoster.length) {
+      alert(`Velg nøyaktig ${valgtePoster.length} jegere før du bekrefter!`);
+      return;
+    }
+    const newDrawn = valgtePoster.map((idx, i) => ({
+      postIdx: idx,
+      jeger: autoJegere[i]
+    }));
+    setDrawn(prev => [...prev, ...newDrawn]);
+    setRemaining(rem => rem.filter(idx => !valgtePoster.includes(idx)));
+    setShowAuto(false);
+    setAutoJegere([]);
+  };
 
   return (
-    <section style={{ display: 'flex', alignItems: 'flex-start', gap: 48 }}>
+    <section style={{ display: 'flex', alignItems: 'flex-start', gap: 32 }}>
+      {/* Venstre kolonne: hovedinnhold */}
       <div style={{ flex: 1, minWidth: 340 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
           <button onClick={() => setExpanderOpen(v => !v)} style={{ padding: '6px 14px', borderRadius: 8, background: '#f4f8ff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer', minWidth: 120 }}>
             Velg poster ({numSelected} valgt{numSelected === 1 ? '' : 'e'}) {expanderOpen ? '▲' : '▼'}
           </button>
@@ -464,60 +487,48 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
                 </li>
               ))}
             </ul>
-            {showAuto && (
-              <div style={{ background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, marginTop: 8, marginBottom: 8, maxWidth: 500 }}>
-                <b>Velg jegere:</b>
-                <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 400 }}>
-                  {ELGJEGERE.map((j, idx) => (
-                    <li key={j.navn} style={{ marginBottom: 4 }}>
-                      <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                        <input type="checkbox" checked={selectedJegere[idx]} disabled={!selectedJegere[idx] && antallValgteJegere >= antallValgtePoster} onChange={() => handleToggleJeger(idx)} style={{ marginRight: 7 }} />
-                        {j.navn} ({j.callsign})
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-                <b>Velg poster:</b>
-                <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 400 }}>
-                  {posts.map((p, idx) => (
-                    <li key={p.name} style={{ marginBottom: 4 }}>
-                      <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                        <input type="checkbox" checked={selected[idx]} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
-                        {p.name}
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={handleTrekkAuto}
-                  disabled={antallValgteJegere !== antallValgtePoster || antallValgtePoster === 0}
-                  style={{ padding: '8px 18px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginTop: 8 }}>
-                  Trekk auto
-                </button>
-                {antallValgteJegere !== antallValgtePoster || antallValgtePoster === 0 && (
-                  <div style={{ color: '#c33', marginTop: 6 }}>Du må velge like mange jegere og poster!</div>
-                )}
-                {autoResult.length > 0 && (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 19, marginTop: 10 }}>
-                    <thead>
-                      <tr>
-                        <th style={{ textAlign: 'left', padding: 4 }}>Post</th>
-                        <th style={{ textAlign: 'left', padding: 4 }}>Callsign</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {autoResult.map((r, i) => (
-                        <tr key={i}>
-                          <td style={{ padding: 4, fontWeight: 700 }}>{r.post.name}</td>
-                          <td style={{ padding: 4, color: '#4a90e2', fontWeight: 600 }}>{r.jeger.callsign}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
           </>
+        )}
+        {showAuto && (
+          <div style={{ marginTop: 24, background: '#f8faff', border: '2px solid #4a90e2', borderRadius: 14, padding: 24, maxWidth: 500, boxShadow: '0 4px 24px #0002', zIndex: 10 }}>
+            <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 18 }}>Automatisk tildeling av poster</div>
+            <div style={{ marginBottom: 8 }}>
+              Velg {ELGPOSTER.map((_, idx) => selected[idx] && remaining.includes(idx) ? idx : null).filter(idx => idx !== null).length} jegere:
+            </div>
+            {jegereUtenPost.map(j => (
+              <label key={j.navn} style={{ display: 'block', marginBottom: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={autoJegere.includes(j.navn)}
+                  onChange={e => {
+                    if (e.target.checked) {
+                      setAutoJegere(prev => [...prev, j.navn]);
+                    } else {
+                      setAutoJegere(prev => prev.filter(n => n !== j.navn));
+                    }
+                  }}
+                  disabled={
+                    !autoJegere.includes(j.navn) &&
+                    autoJegere.length >= ELGPOSTER.map((_, idx) => selected[idx] && remaining.includes(idx) ? idx : null).filter(idx => idx !== null).length
+                  }
+                  style={{ marginRight: 6 }}
+                />
+                {j.navn} ({j.callsign})
+              </label>
+            ))}
+            <button
+              onClick={handleAutoAssign}
+              style={{ marginTop: 12, padding: '10px 24px', borderRadius: 8, background: '#4a90e2', color: '#fff', fontWeight: 600, fontSize: 17, cursor: 'pointer' }}
+            >
+              OK
+            </button>
+            <button
+              onClick={() => { setShowAuto(false); setAutoJegere([]); }}
+              style={{ marginTop: 12, marginLeft: 16, padding: '10px 24px', borderRadius: 8, background: '#eee', color: '#333', fontWeight: 600, fontSize: 17, cursor: 'pointer', border: '1px solid #bbb' }}
+            >
+              Avbryt
+            </button>
+          </div>
         )}
         <div style={{ marginTop: 24 }}>
           <button onClick={sendToDagensPoster} disabled={drawn.length === 0 || sending} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: drawn.length === 0 || sending ? 'not-allowed' : 'pointer' }}>
@@ -526,6 +537,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
           {sendMsg && <span style={{ marginLeft: 12, color: '#2a7', fontWeight: 500 }}>{sendMsg}</span>}
         </div>
       </div>
+      {/* Høyre kolonne: Trukne poster */}
       <div style={{ minWidth: 220, maxWidth: 340, background: '#f8faff', border: '1px solid #dde', borderRadius: 10, padding: 16, boxShadow: '0 2px 8px #0001', marginLeft: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 10 }}>Trukne poster</div>
         {drawn.length === 0 ? (
@@ -904,6 +916,8 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
     setFordeling([]);
     setEdit({});
     setDeleting(false);
+    setShowAddFirst(false); // nullstill alltid
+    setShowAddRow(false); // nullstill alltid
   }
   const [showAddFirst, setShowAddFirst] = useState(false);
   const [selectedPosts, setSelectedPosts] = useState<number[]>([]); // indexer til valgte poster
@@ -929,16 +943,37 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
     setSelectedPosts([]);
     setPostJeger({});
   }
+  const [showAddRow, setShowAddRow] = useState(false);
+  const [addPostIdx, setAddPostIdx] = useState('');
+  const [addJeger, setAddJeger] = useState('');
+  async function handleAddRow(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addPostIdx || !addJeger) return;
+    const ny = [...fordeling, { postIdx: Number(addPostIdx), jeger: addJeger }];
+    await fetch("/api/dagensposter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ny),
+    });
+    setFordeling(ny);
+    setEdit({});
+    setShowAddRow(false);
+    setAddPostIdx('');
+    setAddJeger('');
+  }
   return (
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Dagens poster</h2>
       <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
         {fordeling.length === 0 ? (
-          showAddFirst ? null : (
-            <button onClick={() => setShowAddFirst(true)} disabled={deleting || loading} style={{ padding: '7px 16px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Opprett ny liste</button>
-          )
+          !showAddFirst ? (
+            <button onClick={() => { setShowAddFirst(true); setShowAddRow(false); }} disabled={deleting || loading} style={{ padding: '7px 16px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Opprett ny liste</button>
+          ) : null
         ) : (
-          <button onClick={clearList} disabled={deleting || loading} style={{ padding: '7px 16px', borderRadius: 8, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 15, cursor: 'pointer' }}>Slett liste</button>
+          <>
+            <button onClick={clearList} disabled={deleting || loading} style={{ padding: '7px 16px', borderRadius: 8, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 15, cursor: 'pointer' }}>Slett liste</button>
+            <button onClick={() => { setShowAddRow(true); setShowAddFirst(false); }} style={{ padding: '7px 16px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Legg til post</button>
+          </>
         )}
       </div>
       {showAddFirst && fordeling.length === 0 && (
@@ -974,6 +1009,20 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
             <button type="submit" disabled={selectedPosts.length === 0 || selectedPosts.some(idx => !postJeger[idx])} style={{ padding: '7px 16px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: selectedPosts.length === 0 || selectedPosts.some(idx => !postJeger[idx]) ? 'not-allowed' : 'pointer', marginRight: 8 }}>Lagre</button>
             <button type="button" onClick={() => { setShowAddFirst(false); setSelectedPosts([]); setPostJeger({}); }} style={{ padding: '7px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Avbryt</button>
           </div>
+        </form>
+      )}
+      {showAddRow && fordeling.length > 0 && (
+        <form onSubmit={handleAddRow} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 18 }}>
+          <select value={addPostIdx} onChange={e => setAddPostIdx(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6 }} required>
+            <option value="">Velg post</option>
+            {posts.map((p, idx) => <option key={p.nr+p.name} value={idx}>{p.name}</option>)}
+          </select>
+          <select value={addJeger} onChange={e => setAddJeger(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6 }} required>
+            <option value="">Velg jeger</option>
+            {jegere.map(j => <option key={j.navn} value={j.navn}>{j.navn}</option>)}
+          </select>
+          <button type="submit" style={{ padding: '7px 16px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Lagre</button>
+          <button type="button" onClick={() => { setShowAddRow(false); setAddPostIdx(''); setAddJeger(''); }} style={{ padding: '7px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Avbryt</button>
         </form>
       )}
       {loading ? <div>Laster...</div> : (
@@ -1172,6 +1221,7 @@ export default function Home() {
   // 1. Legg til state:
   const [kartVisning, setKartVisning] = useState<'alle' | 'dagens'>('alle');
   const [dagensPosterData, setDagensPosterData] = useState<{ postIdx: number; jeger: string }[]>([]);
+  const [mapLayer, setMapLayer] = useState('satellite');
   // 2. useEffect for å hente dagens poster:
   useEffect(() => {
     if (activeTab === 'Kart' && kartVisning === 'dagens') {
@@ -1262,84 +1312,84 @@ export default function Home() {
       <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto", padding: "12px 4vw" }}>
         <header style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fafcff', marginBottom: 0 }}>
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sandbekken IT & Drift</h1>
-        </header>
+      </header>
         <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
           <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter"]} current={activeTab} onChange={setActiveTab} />
-        </div>
+      </div>
         {activeTab === "Vær" && (
           <section>
             <h2 style={{ fontSize: 20, marginBottom: 8 }}>Vær for de neste 6 timene (Elghytta)</h2>
-            {hourly.length === 0 ? (
-              <div>Laster værmelding...</div>
-            ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left", padding: 4 }}>Tid</th>
-                    <th style={{ textAlign: "left", padding: 4 }}>Temp</th>
-                    <th style={{ textAlign: "left", padding: 4 }}>Vind (m/s)</th>
-                    <th style={{ textAlign: "left", padding: 4 }}>Retning</th>
+        {hourly.length === 0 ? (
+          <div>Laster værmelding...</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: 4 }}>Tid</th>
+                <th style={{ textAlign: "left", padding: 4 }}>Temp</th>
+                <th style={{ textAlign: "left", padding: 4 }}>Vind (m/s)</th>
+                <th style={{ textAlign: "left", padding: 4 }}>Retning</th>
                     <th style={{ textAlign: "left", padding: 4 }}>Vær</th>
                     <th style={{ textAlign: "left", padding: 4 }}>Nedbør (mm)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {hourly.map((h) => (
-                    <tr key={h.time}>
+              </tr>
+            </thead>
+            <tbody>
+              {hourly.map((h) => (
+                <tr key={h.time}>
                       <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</td>
-                      <td style={{ padding: 4 }}>{h.temp}°C</td>
-                      <td style={{ padding: 4 }}>{h.windSpeed}</td>
-                      <td style={{ padding: 4 }}>
-                        <WindArrow deg={h.windDir} />
+                  <td style={{ padding: 4 }}>{h.temp}°C</td>
+                  <td style={{ padding: 4 }}>{h.windSpeed}</td>
+                  <td style={{ padding: 4 }}>
+                    <WindArrow deg={h.windDir} />
                         {windDirectionText(h.windDir)}
-                      </td>
+                  </td>
                       <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
                       <td style={{ padding: 4 }}>{h.precipitation}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
             <div style={{ marginTop: 24 }}>
-              <button onClick={() => setExpand((v) => !v)} style={{ padding: "6px 14px", fontSize: 15, borderRadius: 8, cursor: "pointer", marginBottom: 8 }}>
-                {expand ? "Skjul 3-dagersvarsel" : "Vis 3-dagersvarsel"}
-              </button>
-              {expand && (
-                <div>
-                  <h2 style={{ fontSize: 18, marginBottom: 8 }}>Værmelding neste 3 dager</h2>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr>
-                        <th style={{ textAlign: "left", padding: 4 }}>Dato</th>
-                        <th style={{ textAlign: "left", padding: 4 }}>Min</th>
-                        <th style={{ textAlign: "left", padding: 4 }}>Max</th>
-                        <th style={{ textAlign: "left", padding: 4 }}>Vind (m/s)</th>
-                        <th style={{ textAlign: "left", padding: 4 }}>Retning</th>
+        <button onClick={() => setExpand((v) => !v)} style={{ padding: "6px 14px", fontSize: 15, borderRadius: 8, cursor: "pointer", marginBottom: 8 }}>
+          {expand ? "Skjul 3-dagersvarsel" : "Vis 3-dagersvarsel"}
+        </button>
+        {expand && (
+          <div>
+            <h2 style={{ fontSize: 18, marginBottom: 8 }}>Værmelding neste 3 dager</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: 4 }}>Dato</th>
+                  <th style={{ textAlign: "left", padding: 4 }}>Min</th>
+                  <th style={{ textAlign: "left", padding: 4 }}>Max</th>
+                  <th style={{ textAlign: "left", padding: 4 }}>Vind (m/s)</th>
+                  <th style={{ textAlign: "left", padding: 4 }}>Retning</th>
                         <th style={{ textAlign: "left", padding: 4 }}>Vær</th>
                         <th style={{ textAlign: "left", padding: 4 }}>Nedbør (mm)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {forecast.map((day) => (
-                        <tr key={day.date}>
-                          <td style={{ padding: 4 }}>{day.date}</td>
-                          <td style={{ padding: 4 }}>{day.tempMin}°C</td>
-                          <td style={{ padding: 4 }}>{day.tempMax}°C</td>
-                          <td style={{ padding: 4 }}>{day.windSpeed}</td>
-                          <td style={{ padding: 4 }}>
-                            <WindArrow deg={day.windDir} />
+                </tr>
+              </thead>
+              <tbody>
+                {forecast.map((day) => (
+                  <tr key={day.date}>
+                    <td style={{ padding: 4 }}>{day.date}</td>
+                    <td style={{ padding: 4 }}>{day.tempMin}°C</td>
+                    <td style={{ padding: 4 }}>{day.tempMax}°C</td>
+                    <td style={{ padding: 4 }}>{day.windSpeed}</td>
+                    <td style={{ padding: 4 }}>
+                      <WindArrow deg={day.windDir} />
                             {windDirectionText(day.windDir)}
-                          </td>
+                    </td>
                           <td style={{ padding: 4 }}>{weatherIcon(day.weatherCode)}</td>
                           <td style={{ padding: 4 }}>{day.precipitation}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
             </div>
-          </section>
+      </section>
         )}
         {activeTab === "Postvær" && (
           <PostvaerTab />
@@ -1355,17 +1405,25 @@ export default function Home() {
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
               <button onClick={() => setKartVisning('alle')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'alle' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'alle' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'alle' ? 600 : 400, cursor: 'pointer' }}>Vis alle poster</button>
               <button onClick={() => setKartVisning('dagens')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'dagens' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'dagens' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'dagens' ? 600 : 400, cursor: 'pointer' }}>Vis kun dagens poster</button>
+              <div style={{ marginLeft: 'auto' }}>
+                <select value={mapLayer} onChange={e => setMapLayer(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #bbb', fontSize: 15 }}>
+                  <option value="satellite">🛰️ Flyfoto (Esri)</option>
+                  <option value="opentopo">🗺️ OpenTopoMap</option>
+                  <option value="combo">🛰️+🗺️ Combo</option>
+                </select>
+              </div>
             </div>
             <MapSection
               position={DEFAULT_POSITION}
               posts={postsToShow}
               setPosts={setElgposter}
+              selectedLayer={mapLayer}
               {...(kartVisning === 'dagens' ? { dagensPosterInfo } : {})}
             />
           </div>
         )}
         {activeTab === "Mørning" && (
-          <section>
+      <section>
             <h2 style={{ fontSize: 20, marginBottom: 8 }}>Mørning</h2>
             <div style={{ marginBottom: 18 }}>
               <button onClick={() => setShowAdd(v => !v)} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Legg til ny logg</button>
@@ -1397,12 +1455,12 @@ export default function Home() {
                 onDelete={() => setLoggers((loggers: Logger[]) => loggers.filter((x: Logger) => x.id !== l.id))}
               />
             ))}
-          </section>
+      </section>
         )}
         {activeTab === "Elgposter" && (
           <ElgposterTab posts={posts} setPosts={setPosts} />
         )}
-      </div>
+    </div>
     </>
   );
 }

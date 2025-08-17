@@ -11,10 +11,14 @@ interface MapSectionProps {
   posts: (Elgpost & { originalIdx?: number; visBlatt?: boolean })[];
   setPosts: React.Dispatch<React.SetStateAction<Elgpost[]>>;
   dagensPosterInfo?: Array<{postIdx: number, jeger: string, callsign: string}>;
+  selectedLayer?: string;
 }
 
-export default function MapSection({ position, posts, dagensPosterInfo }: MapSectionProps) {
+export default function MapSection({ position, posts, dagensPosterInfo, selectedLayer = 'satellite' }: MapSectionProps) {
   const [zoom, setZoom] = useState(16);
+  const [satOpacity, setSatOpacity] = useState(1.0);
+  const [topoOpacity, setTopoOpacity] = useState(0.5);
+  const [comboOrder, setComboOrder] = useState<'satFirst' | 'topoFirst'>('satFirst');
 
   // Subkomponent for å lytte på zoom-endringer
   function ZoomListener() {
@@ -39,21 +43,129 @@ export default function MapSection({ position, posts, dagensPosterInfo }: MapSec
     });
   }
 
+  // Kartlag-URLer
+  const tileLayers: Record<string, { url: string; attribution: string; maxZoom?: number; minZoom?: number; opacity?: number }> = {
+    satellite: {
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      attribution: 'Tiles &copy; Esri',
+      maxZoom: 19,
+      minZoom: 0,
+    },
+    opentopo: {
+      url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+      attribution: 'Kartdata: &copy; OpenTopoMap (CC-BY-SA)',
+      maxZoom: 17,
+      minZoom: 0,
+    },
+    kartverket_ortofoto: {
+      url: 'http://localhost:4000/tiles/orto_for/{z}/{x}/{y}.png',
+      attribution: 'Kartverket Ortofoto',
+      maxZoom: 19,
+      minZoom: 0,
+    },
+    kartverket_topo: {
+      url: 'http://localhost:4000/tiles/topo2/{z}/{x}/{y}.png',
+      attribution: 'Kartverket Topo',
+      maxZoom: 17,
+      minZoom: 0,
+    },
+    kartverket_hillshade: {
+      url: 'http://localhost:4000/tiles/hillshade_for/{z}/{x}/{y}.png',
+      attribution: 'Kartverket Hillshade',
+      maxZoom: 17,
+      minZoom: 0,
+      opacity: 0.5,
+    },
+    norgeskart_ortofoto: {
+      url: 'https://tiles.kartverket.no/arcgis/rest/services/Ortofoto/MapServer/tile/{z}/{y}/{x}',
+      attribution: 'Norgeskart Ortofoto',
+      maxZoom: 19,
+      minZoom: 0,
+    },
+    norgeskart_topo: {
+      url: 'https://tiles.kartverket.no/arcgis/rest/services/Topografisk/MapServer/tile/{z}/{y}/{x}',
+      attribution: 'Norgeskart Topo',
+      maxZoom: 17,
+      minZoom: 0,
+    },
+    combo: {}, // brukes kun for visningslogikk
+  };
+  const layer = tileLayers[selectedLayer] || tileLayers.satellite;
+  const showCombo = selectedLayer === 'combo';
+
   return (
     <div style={{ marginBottom: 24, position: "relative" }}>
+      {showCombo && (
+        <div style={{ marginBottom: 8, display: 'flex', gap: 24, alignItems: 'center' }}>
+          <label>
+            Flyfoto opacity: {satOpacity.toFixed(2)}
+            <input type="range" min="0" max="1" step="0.01"
+                   value={satOpacity} onChange={e => setSatOpacity(parseFloat(e.target.value))}/>
+          </label>
+          <label>
+            Topo opacity: {topoOpacity.toFixed(2)}
+            <input type="range" min="0" max="1" step="0.01"
+                   value={topoOpacity} onChange={e => setTopoOpacity(parseFloat(e.target.value))}/>
+          </label>
+          <button onClick={() => setComboOrder(o => o === 'satFirst' ? 'topoFirst' : 'satFirst')} style={{ marginLeft: 16, padding: '6px 14px', borderRadius: 8, fontSize: 15, cursor: 'pointer' }}>
+            Bytt om på lagene
+          </button>
+        </div>
+      )}
       <MapContainer
         center={position}
         zoom={zoom}
         style={{ height: 500, width: "100%" }}
       >
         <ZoomListener />
-        <TileLayer
-          attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        />
+        {showCombo ? (
+          comboOrder === 'satFirst' ? (
+            <>
+              <TileLayer
+                attribution={tileLayers.satellite.attribution}
+                url={tileLayers.satellite.url}
+                maxZoom={tileLayers.satellite.maxZoom}
+                minZoom={tileLayers.satellite.minZoom}
+                opacity={satOpacity}
+              />
+              <TileLayer
+                attribution={tileLayers.opentopo.attribution}
+                url={tileLayers.opentopo.url}
+                maxZoom={tileLayers.opentopo.maxZoom}
+                minZoom={tileLayers.opentopo.minZoom}
+                opacity={topoOpacity}
+              />
+            </>
+          ) : (
+            <>
+              <TileLayer
+                attribution={tileLayers.opentopo.attribution}
+                url={tileLayers.opentopo.url}
+                maxZoom={tileLayers.opentopo.maxZoom}
+                minZoom={tileLayers.opentopo.minZoom}
+                opacity={topoOpacity}
+              />
+              <TileLayer
+                attribution={tileLayers.satellite.attribution}
+                url={tileLayers.satellite.url}
+                maxZoom={tileLayers.satellite.maxZoom}
+                minZoom={tileLayers.satellite.minZoom}
+                opacity={satOpacity}
+              />
+            </>
+          )
+        ) : (
+          <TileLayer
+            attribution={layer.attribution}
+            url={layer.url}
+            maxZoom={layer.maxZoom}
+            minZoom={layer.minZoom}
+            opacity={layer.opacity ?? 1.0}
+          />
+        )}
         {posts.map((post, idx) => {
-          const isCabin = /hytte|elghytta/i.test(post.name);
-          const icon = post.visBlatt ? getDotIcon('blue') : getDotIcon(isCabin ? 'green' : 'red');
+          const isElghytta = post.name.trim().toUpperCase() === 'ELGHYTTA';
+          const icon = post.visBlatt ? getDotIcon('blue') : getDotIcon(isElghytta ? 'green' : 'red');
           const info = dagensPosterInfo?.find(d => d.postIdx === (post.originalIdx ?? idx));
           return (
             <Marker key={idx} position={[post.lat, post.lng]} icon={icon}>
