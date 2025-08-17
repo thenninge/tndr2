@@ -216,8 +216,17 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
         const doneTime = new Date(start.getTime() + hist[doneIdx].t * 60 * 1000);
         setEstimatedDone(doneTime);
       } else {
-        // Hvis target ikke er nådd, simuler videre fremover med siste forecast-temp til target nås, og sett estimatedDone til dette tidspunktet.
-        setEstimatedDone(null);
+        // Simuler videre med siste forecast-temp
+        let simSum = sum;
+        let simT = intervals.length > 0 ? intervals[intervals.length - 1].t : 0;
+        let simTime = intervals.length > 0 ? new Date(start.getTime() + simT * 60 * 1000) : new Date(start);
+        const simTemp = intervals.length > 0 ? intervals[intervals.length - 1].temp : 10 + logger.offset;
+        while (simSum < logger.target && simT < 60 * 24 * 365) { // maks 1 år
+          simSum += simTemp / (logger.accelerated ? 24 : 96);
+          simT += interval;
+          simTime = new Date(simTime.getTime() + interval * 60 * 1000);
+        }
+        setEstimatedDone(simTime);
       }
       setLoading(false);
     }
