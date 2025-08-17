@@ -1324,6 +1324,8 @@ function FallTab({ jegere, onShowInMap }: { jegere: { navn: string; callsign: st
   const [skytter, setSkytter] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  const [editFall, setEditFall] = useState<{ dato: string; lat: string; lng: string; type: string; vekt: string; skytter: string } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -1344,6 +1346,34 @@ function FallTab({ jegere, onShowInMap }: { jegere: { navn: string; callsign: st
     setFall(nyListe);
     await fetch('/api/fall', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nyListe) });
     setDato(''); setLat(''); setLng(''); setType(''); setVekt(''); setSkytter('');
+  }
+
+  async function handleSaveEdit(idx: number) {
+    if (!editFall || !editFall.dato || !editFall.lat || !editFall.lng || !editFall.type || !editFall.vekt || !editFall.skytter) {
+      setError('Fyll ut alle felter');
+      return;
+    }
+    const ny = [...fall];
+    ny[idx] = {
+      dato: editFall.dato,
+      lat: Number(editFall.lat),
+      lng: Number(editFall.lng),
+      type: editFall.type,
+      vekt: Number(editFall.vekt),
+      skytter: editFall.skytter
+    };
+    setFall(ny);
+    setEditIdx(null);
+    setEditFall(null);
+    await fetch('/api/fall', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ny) });
+  }
+
+  async function handleDelete(idx: number) {
+    const ny = fall.filter((_, i) => i !== idx);
+    setFall(ny);
+    setEditIdx(null);
+    setEditFall(null);
+    await fetch('/api/fall', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ny) });
   }
 
   return (
@@ -1373,18 +1403,50 @@ function FallTab({ jegere, onShowInMap }: { jegere: { navn: string; callsign: st
                 <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Type</th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Vekt (kg)</th>
                 <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Skytter</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}></th>
               </tr>
             </thead>
             <tbody>
               {fall.map((f, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? '#fafdff' : '#f0f6fa' }}>
-                  <td style={{ padding: 8, textAlign: 'right' }}>{f.dato}</td>
-                  <td style={{ padding: 8, textAlign: 'right' }}>{f.lat.toFixed(3)}</td>
-                  <td style={{ padding: 8, textAlign: 'right' }}>{f.lng.toFixed(3)}</td>
-                  <td style={{ padding: 8, textAlign: 'right' }}>{f.type}</td>
-                  <td style={{ padding: 8, textAlign: 'right' }}>{f.vekt}</td>
-                  <td style={{ padding: 8, textAlign: 'right' }}>{f.skytter}</td>
-                </tr>
+                editIdx === i && editFall ? (
+                  <tr key={i} style={{ background: i % 2 === 0 ? '#fafdff' : '#f0f6fa' }}>
+                    <td style={{ padding: 8, textAlign: 'right' }}><input type="date" value={editFall.dato} onChange={e => setEditFall(ef => ef ? { ...ef, dato: e.target.value ?? "" } : ef)} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 120 }} /></td>
+                    <td style={{ padding: 8, textAlign: 'right' }}><input type="number" step="any" value={editFall.lat} onChange={e => setEditFall(ef => ef ? { ...ef, lat: e.target.value ?? "" } : ef)} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 90 }} /></td>
+                    <td style={{ padding: 8, textAlign: 'right' }}><input type="number" step="any" value={editFall.lng} onChange={e => setEditFall(ef => ef ? { ...ef, lng: e.target.value ?? "" } : ef)} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 90 }} /></td>
+                    <td style={{ padding: 8, textAlign: 'right' }}><input type="text" value={editFall.type} onChange={e => setEditFall(ef => ef ? { ...ef, type: e.target.value ?? "" } : ef)} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 90 }} /></td>
+                    <td style={{ padding: 8, textAlign: 'right' }}><input type="number" value={editFall.vekt} onChange={e => setEditFall(ef => ef ? { ...ef, vekt: e.target.value ?? "" } : ef)} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 70 }} /></td>
+                    <td style={{ padding: 8, textAlign: 'right' }}>
+                      <select value={editFall.skytter} onChange={e => setEditFall(ef => ef ? { ...ef, skytter: e.target.value ?? "" } : ef)} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 110 }}>
+                        <option value="">Skytter</option>
+                        {jegere.map(j => <option key={j.navn} value={j.navn}>{j.navn} ({j.callsign})</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: 8, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button onClick={() => handleSaveEdit(i)} style={{ padding: '3px 10px', borderRadius: 7, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 14, cursor: 'pointer', marginRight: 4 }}>Lagre</button>
+                      <button onClick={() => { setEditIdx(null); setEditFall(null); }} style={{ padding: '3px 10px', borderRadius: 7, background: '#eee', border: '1px solid #bbb', fontSize: 14, cursor: 'pointer', marginRight: 4 }}>Lukk</button>
+                      <button onClick={() => handleDelete(i)} style={{ padding: '3px 10px', borderRadius: 7, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 14, cursor: 'pointer' }}>Slett</button>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={i} style={{ background: i % 2 === 0 ? '#fafdff' : '#f0f6fa' }}>
+                    <td style={{ padding: 8, textAlign: 'right' }}>{f.dato}</td>
+                    <td style={{ padding: 8, textAlign: 'right' }}>{f.lat.toFixed(3)}</td>
+                    <td style={{ padding: 8, textAlign: 'right' }}>{f.lng.toFixed(3)}</td>
+                    <td style={{ padding: 8, textAlign: 'right' }}>{f.type}</td>
+                    <td style={{ padding: 8, textAlign: 'right' }}>{f.vekt}</td>
+                    <td style={{ padding: 8, textAlign: 'right' }}>{f.skytter}</td>
+                    <td style={{ padding: 8, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button onClick={() => { setEditIdx(i); setEditFall({
+                        dato: f.dato,
+                        lat: f.lat.toString(),
+                        lng: f.lng.toString(),
+                        type: f.type,
+                        vekt: f.vekt.toString(),
+                        skytter: f.skytter
+                      }); }} style={{ padding: '3px 10px', borderRadius: 7, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 14, cursor: 'pointer', marginRight: 4 }}>Endre</button>
+                    </td>
+                  </tr>
+                )
               ))}
             </tbody>
           </table>
