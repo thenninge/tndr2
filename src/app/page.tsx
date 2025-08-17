@@ -276,7 +276,14 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
         <button onClick={handleReset} style={{ padding: '8px 18px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 16, cursor: 'pointer' }}>Nullstill</button>
       </div>
       {loading ? <div>Laster temperaturdata...</div> : <>
-        <div style={{ marginBottom: 12 }}>Akkumulert døgngrad: <b>{dgSum.toFixed(2)}</b></div>
+        <div style={{ marginBottom: 12, display: 'flex', gap: 24, alignItems: 'center' }}>
+          <span>Akkumulert døgngrad: <b>{dgSum.toFixed(2)}</b></span>
+          {estimatedDone && (
+            <span style={{ color: '#2a7' }}>
+              Estimert ferdig: {estimatedDone.toLocaleDateString('no-NO', { weekday: 'long', day: '2-digit', month: '2-digit', year: '2-digit' })}, {estimatedDone.toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit', hour12: false })}
+            </span>
+          )}
+        </div>
         {history.length > 0 && (
           <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>
             Timer: {(() => {
@@ -290,11 +297,6 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
           </div>
         )}
         <DgGraph data={history} target={logger.target} />
-        {estimatedDone && (
-          <div style={{ fontSize: 13, color: '#2a7', marginBottom: 2 }}>
-            Estimert ferdig: {estimatedDone.toLocaleDateString('no-NO', { weekday: 'long', day: '2-digit', month: '2-digit', year: '2-digit' })}, {estimatedDone.toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit', hour12: false })}
-          </div>
-        )}
         <div style={{ fontSize: 13, color: '#888' }}>Temperatur: {currentTemp !== null ? `${currentTemp.toFixed(1)}°C` : 'ukjent'} (offset: {logger.offset >= 0 ? '+' : ''}{logger.offset})</div>
       </>}
     </div>
