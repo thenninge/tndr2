@@ -88,7 +88,7 @@ export default function MapSection({ position, posts, dagensPosterInfo, selected
       maxZoom: 17,
       minZoom: 0,
     },
-    combo: {}, // brukes kun for visningslogikk
+    combo: { url: '', attribution: 'Kun for visningslogikk' }, // brukes kun for visningslogikk
   };
   const layer = tileLayers[selectedLayer] || tileLayers.satellite;
   const showCombo = selectedLayer === 'combo';
