@@ -812,7 +812,10 @@ function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: React.Disp
               <td style={{ padding: 4 }}>{post.name}</td>
               <td style={{ padding: 4 }}>{post.omrade}</td>
               <td style={{ padding: 4 }}>{ELGHYTTA ? Math.round(distFromHytta(post)) : '–'}</td>
-              <td style={{ padding: 4 }}><button onClick={()=>handleDelete(posts.indexOf(post))} style={{ padding: '3px 10px', borderRadius: 7, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 14, cursor: 'pointer' }}>Slett</button></td>
+              <td style={{ padding: 4 }}>
+                <button onClick={()=>handleDelete(posts.indexOf(post))} style={{ padding: '3px 10px', borderRadius: 7, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 14, cursor: 'pointer' }}>Slett</button>
+                <button onClick={()=>handleDelete(posts.indexOf(post))} style={{ padding: '3px 10px', borderRadius: 7, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 14, cursor: 'pointer' }}>Endre</button>
+              </td>
             </tr>
           ))}
         </tbody>
