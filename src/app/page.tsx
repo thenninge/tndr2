@@ -868,7 +868,7 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
   const [edit, setEdit] = useState<{ [postIdx: number]: string }>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
+  const [deleting, setDeleting] = useState(false);
   // Hent dagens fordeling
   useEffect(() => {
     setLoading(true);
@@ -880,7 +880,6 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
         setLoading(false);
       });
   }, []);
-
   // Lagre dagens fordeling
   async function save() {
     setSaving(true);
@@ -894,10 +893,89 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
     setEdit({});
     setSaving(false);
   }
-
+  // Slett/Nullstill dagens poster
+  async function clearList() {
+    setDeleting(true);
+    await fetch("/api/dagensposter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify([]),
+    });
+    setFordeling([]);
+    setEdit({});
+    setDeleting(false);
+  }
+  const [showAddFirst, setShowAddFirst] = useState(false);
+  const [selectedPosts, setSelectedPosts] = useState<number[]>([]); // indexer til valgte poster
+  const [postJeger, setPostJeger] = useState<{ [postIdx: number]: string }>({});
+  function handleTogglePost(idx: number) {
+    setSelectedPosts(sel => sel.includes(idx) ? sel.filter(i => i !== idx) : [...sel, idx]);
+  }
+  function handleSetJeger(idx: number, jeger: string) {
+    setPostJeger(j => ({ ...j, [idx]: jeger }));
+  }
+  async function handleSaveNewList(e: React.FormEvent) {
+    e.preventDefault();
+    if (selectedPosts.length === 0) return;
+    const ny = selectedPosts.map(idx => ({ postIdx: idx, jeger: postJeger[idx] || '' }));
+    await fetch("/api/dagensposter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ny),
+    });
+    setFordeling(ny);
+    setEdit({});
+    setShowAddFirst(false);
+    setSelectedPosts([]);
+    setPostJeger({});
+  }
   return (
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Dagens poster</h2>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        {fordeling.length === 0 ? (
+          showAddFirst ? null : (
+            <button onClick={() => setShowAddFirst(true)} disabled={deleting || loading} style={{ padding: '7px 16px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Opprett ny liste</button>
+          )
+        ) : (
+          <button onClick={clearList} disabled={deleting || loading} style={{ padding: '7px 16px', borderRadius: 8, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 15, cursor: 'pointer' }}>Slett liste</button>
+        )}
+      </div>
+      {showAddFirst && fordeling.length === 0 && (
+        <form onSubmit={handleSaveNewList} style={{ marginBottom: 18 }}>
+          <div style={{ marginBottom: 10 }}><b>1. Velg poster:</b></div>
+          <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 500, marginBottom: 12 }}>
+            {posts.map((p, idx) => (
+              <li key={p.nr+p.name} style={{ marginBottom: 4 }}>
+                <label style={{ cursor: 'pointer', fontSize: 16 }}>
+                  <input type="checkbox" checked={selectedPosts.includes(idx)} onChange={() => handleTogglePost(idx)} style={{ marginRight: 7 }} />
+                  {p.name}
+                </label>
+              </li>
+            ))}
+          </ul>
+          {selectedPosts.length > 0 && (
+            <>
+              <div style={{ marginBottom: 10 }}><b>2. Velg jeger for hver post:</b></div>
+              <ul style={{ listStyle: 'none', padding: 0, maxWidth: 500 }}>
+                {selectedPosts.map(idx => (
+                  <li key={idx} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ minWidth: 120 }}>{posts[idx].name}</span>
+                    <select value={postJeger[idx] || ''} onChange={e => handleSetJeger(idx, e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6 }} required>
+                      <option value="">Velg jeger</option>
+                      {jegere.map(j => <option key={j.navn} value={j.navn}>{j.navn}</option>)}
+                    </select>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <div style={{ marginTop: 12 }}>
+            <button type="submit" disabled={selectedPosts.length === 0 || selectedPosts.some(idx => !postJeger[idx])} style={{ padding: '7px 16px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: selectedPosts.length === 0 || selectedPosts.some(idx => !postJeger[idx]) ? 'not-allowed' : 'pointer', marginRight: 8 }}>Lagre</button>
+            <button type="button" onClick={() => { setShowAddFirst(false); setSelectedPosts([]); setPostJeger({}); }} style={{ padding: '7px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Avbryt</button>
+          </div>
+        </form>
+      )}
       {loading ? <div>Laster...</div> : (
         fordeling.length === 0 ? (
           <div style={{ color: '#888', fontSize: 17, marginBottom: 12 }}>Ingen poster er trukket og sendt inn ennå.</div>
