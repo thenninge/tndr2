@@ -292,7 +292,7 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
         <DgGraph data={history} target={logger.target} />
         {estimatedDone && (
           <div style={{ fontSize: 13, color: '#2a7', marginBottom: 2 }}>
-            Estimert ferdig: {estimatedDone.toLocaleString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: '2-digit', hour12: false })}
+            Estimert ferdig: {estimatedDone.toLocaleDateString('no-NO', { weekday: 'long', day: '2-digit', month: '2-digit', year: '2-digit' })}, {estimatedDone.toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit', hour12: false })}
           </div>
         )}
         <div style={{ fontSize: 13, color: '#888' }}>Temperatur: {currentTemp !== null ? `${currentTemp.toFixed(1)}°C` : 'ukjent'} (offset: {logger.offset >= 0 ? '+' : ''}{logger.offset})</div>
