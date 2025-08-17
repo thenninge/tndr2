@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useRef } from "react";
 import { ELGPOSTER } from "./elgposter";
 import { ELGJEGERE } from "./elgjegere";
+import Head from "next/head";
 
 // Type-definisjoner for hele appen
 export type Post = {
@@ -1143,6 +1144,7 @@ export default function Home() {
   }, [loggers]);
 
   return (
+    <Head><title>Sandbekken Jaktlag</title></Head>
     <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto", padding: "12px 4vw" }}>
       <header style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fafcff', marginBottom: 0 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sanbekken IT & Drift</h1>
