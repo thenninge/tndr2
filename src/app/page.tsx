@@ -14,6 +14,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+import type { Fall } from "./types";
 
 // Type-definisjoner for hele appen
 export type Post = {
@@ -758,7 +759,7 @@ function PostvaerTab() {
         </button>
         <div>
           <b>Sorter etter:</b>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
             <option value="nord-sor">Nord → Sør</option>
             <option value="sor-nord">Sør → Nord</option>
             <option value="ost-vest">Øst → Vest</option>
@@ -911,7 +912,7 @@ function ElgposterTab({ posts, setPosts }: { posts: Post[]; setPosts: React.Disp
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Elgposter</h2>
       <div style={{ marginBottom: 16, display: 'flex', gap: 18, alignItems: 'center' }}>
         <b>Sorter etter:</b>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
           <option value="omrade">Område-sortering</option>
           <option value="nord-sor">Nord → Sør</option>
           <option value="sor-nord">Sør → Nord</option>
@@ -1090,7 +1091,7 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
             <b>1. Velg poster:</b>
             <label style={{ fontWeight: 400, fontSize: 15 }}>
               Sorter postliste:
-              <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} style={{ marginLeft: 6, fontSize: 15, padding: 3, borderRadius: 5 }}>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ marginLeft: 6, fontSize: 15, padding: 3, borderRadius: 5 }}>
                 <option value="omrade">Område-sortering</option>
                 <option value="nord-sor">Nord → Sør</option>
                 <option value="sor-nord">Sør → Nord</option>
@@ -1244,7 +1245,7 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
               <option key={j.navn} value={j.navn}>{j.navn}</option>
             ))}
           </select>
-          <select value={addSortBy} onChange={e => setAddSortBy(e.target.value as any)} style={{ fontSize: 15, padding: 3, borderRadius: 5, marginLeft: 8 }}>
+          <select value={addSortBy} onChange={e => setAddSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ fontSize: 15, padding: 3, borderRadius: 5, marginLeft: 8 }}>
             <option value="omrade">Område-sortering</option>
             <option value="nord-sor">Nord → Sør</option>
             <option value="sor-nord">Sør → Nord</option>
@@ -1313,6 +1314,84 @@ function DagensPosterTab({ posts, jegere }: { posts: Elgpost[]; jegere: { navn: 
   );
 }
 
+function FallTab({ jegere, onShowInMap }: { jegere: { navn: string; callsign: string }[]; onShowInMap?: (fall: Fall[]) => void }) {
+  const [fall, setFall] = useState<Fall[]>([]);
+  const [dato, setDato] = useState('');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
+  const [type, setType] = useState('');
+  const [vekt, setVekt] = useState('');
+  const [skytter, setSkytter] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/fall')
+      .then(r => r.json())
+      .then(data => { setFall(Array.isArray(data) ? data : []); setLoading(false); });
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!dato || !lat || !lng || !type || !vekt || !skytter) {
+      setError('Fyll ut alle felter');
+      return;
+    }
+    const nyttFall: Fall = { dato, lat: Number(lat), lng: Number(lng), type, vekt: Number(vekt), skytter };
+    const nyListe = [nyttFall, ...fall];
+    setFall(nyListe);
+    await fetch('/api/fall', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nyListe) });
+    setDato(''); setLat(''); setLng(''); setType(''); setVekt(''); setSkytter('');
+  }
+
+  return (
+    <section>
+      <h2 style={{ fontSize: 20, marginBottom: 8 }}>Logg elgfall</h2>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 18 }}>
+        <input type="date" value={dato} onChange={e => setDato(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6 }} required />
+        <input type="number" step="any" placeholder="Lat" value={lat} onChange={e => setLat(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6, width: 120 }} required />
+        <input type="number" step="any" placeholder="Lng" value={lng} onChange={e => setLng(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6, width: 120 }} required />
+        <input type="text" placeholder="Type (f.eks. Okse)" value={type} onChange={e => setType(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6, width: 120 }} required />
+        <input type="number" placeholder="Vekt (kg)" value={vekt} onChange={e => setVekt(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6, width: 100 }} required />
+        <select value={skytter} onChange={e => setSkytter(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6, width: 120 }} required>
+          <option value="">Skytter</option>
+          {jegere.map(j => <option key={j.navn} value={j.navn}>{j.navn} ({j.callsign})</option>)}
+        </select>
+        <button type="submit" style={{ padding: '7px 16px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Lagre</button>
+      </form>
+      {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
+      {loading ? <div>Laster...</div> : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 17 }}>
+          <thead>
+            <tr>
+              <th>Dato</th>
+              <th>Lat</th>
+              <th>Lng</th>
+              <th>Type</th>
+              <th>Vekt</th>
+              <th>Skytter</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fall.map((f, i) => (
+              <tr key={i}>
+                <td>{f.dato}</td>
+                <td>{f.lat.toFixed(3)}</td>
+                <td>{f.lng.toFixed(3)}</td>
+                <td>{f.type}</td>
+                <td>{f.vekt}</td>
+                <td>{f.skytter}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 export default function Home() {
   const [showMap, setShowMap] = useState(false);
   const [addPostMode, setAddPostMode] = useState(false);
@@ -1340,6 +1419,9 @@ export default function Home() {
 
   // Delt trekkData-state for trukne poster
   const [trekkData, setTrekkData] = useState<TrekkData[]>([]);
+  const [fallIMarker, setFallIMarker] = useState<Fall[] | undefined>(undefined);
+  const [fallData, setFallData] = useState<Fall[]>([]);
+  const [showFallInMap, setShowFallInMap] = useState(false);
 
   function handlePostAdded() {
     setShowMap(false);
@@ -1521,6 +1603,11 @@ export default function Home() {
     }
   }, [loggers]);
 
+  // Hent fall-data én gang
+  useEffect(() => {
+    fetch('/api/fall').then(r => r.json()).then(data => setFallData(Array.isArray(data) ? data : []));
+  }, []);
+
   return (
     <>
       <Head><title>Sandbekken IT & Drift</title></Head>
@@ -1529,7 +1616,7 @@ export default function Home() {
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sandbekken IT & Drift</h1>
       </header>
         <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
-          <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter"]} current={activeTab} onChange={setActiveTab} />
+          <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter", "Fall"]} current={activeTab} onChange={setActiveTab} />
       </div>
         {activeTab === "Vær" && (
           <section>
@@ -1616,10 +1703,14 @@ export default function Home() {
           <DagensPosterTab posts={elgposter} jegere={ELGJEGERE} />
         )}
         {activeTab === "Kart" && (
-          <div style={{ margin: '0 auto', maxWidth: 900 }}>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+          <div style={{ width: '100%', maxWidth: 900, margin: '0 auto' }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center' }}>
               <button onClick={() => setKartVisning('alle')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'alle' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'alle' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'alle' ? 600 : 400, cursor: 'pointer' }}>Vis alle poster</button>
               <button onClick={() => setKartVisning('dagens')} style={{ padding: '7px 16px', borderRadius: 8, background: kartVisning === 'dagens' ? '#e0eaff' : '#f4f4f4', border: kartVisning === 'dagens' ? '2px solid #4a90e2' : '1px solid #ccc', fontWeight: kartVisning === 'dagens' ? 600 : 400, cursor: 'pointer' }}>Vis kun dagens poster</button>
+              <label style={{ fontSize: 16, fontWeight: 500, marginLeft: 12, whiteSpace: 'nowrap' }}>
+                <input type="checkbox" checked={showFallInMap} onChange={e => setShowFallInMap(e.target.checked)} style={{ marginRight: 8 }} />
+                Vis fall i kart
+              </label>
               <div style={{ marginLeft: 'auto' }}>
                 <select value={mapLayer} onChange={e => setMapLayer(e.target.value)} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #bbb', fontSize: 15 }}>
                   <option value="satellite">🛰️ Flyfoto (Esri)</option>
@@ -1634,6 +1725,7 @@ export default function Home() {
               setPosts={setElgposter}
               selectedLayer={mapLayer}
               {...(kartVisning === 'dagens' ? { dagensPosterInfo } : {})}
+              fall={showFallInMap ? fallData : undefined}
             />
           </div>
         )}
@@ -1674,6 +1766,9 @@ export default function Home() {
         )}
         {activeTab === "Elgposter" && (
           <ElgposterTab posts={posts} setPosts={setPosts} />
+        )}
+        {activeTab === "Fall" && (
+          <FallTab jegere={ELGJEGERE} />
         )}
     </div>
     </>
