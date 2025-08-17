@@ -163,13 +163,13 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
       const now = logger.accelerated ? new Date(logger.startTime! + logger.simulatedElapsed * 60 * 1000) : new Date();
       // Finn alle datoer som trengs
       const dates: string[] = [];
-      let d = new Date(start);
+      const d = new Date(start);
       while (d <= now) {
         dates.push(d.toISOString().slice(0, 10));
         d.setDate(d.getDate() + 1);
       }
       // Hent alle temperaturer for alle datoer (archive for fortid, forecast for fremtid)
-      let temps: { time: string; temp: number }[] = [];
+      const temps: { time: string; temp: number }[] = [];
       for (const date of dates) {
         const isPast = new Date(date) < new Date(new Date().toISOString().slice(0, 10));
         let url = '';
@@ -1105,7 +1105,7 @@ export default function Home() {
       const saved = localStorage.getItem('loggers');
       if (saved) {
         const arr = JSON.parse(saved);
-        return arr.map((l: any) => ({
+        return arr.map((l: Logger) => ({
           id: l.id,
           name: l.name,
           lat: l.lat,
