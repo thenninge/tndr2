@@ -1130,7 +1130,7 @@ export default function Home() {
   }, [loggers]);
 
   return (
-    <div style={{ width: "100%", maxWidth: 600, margin: "0 auto", padding: 24 }}>
+    <div style={{ width: "100%", maxWidth: "100%", margin: "0 auto", padding: "12px 4vw" }}>
       <header style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sanbekken IT & Drift</h1>
       </header>
