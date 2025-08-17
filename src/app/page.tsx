@@ -1363,31 +1363,49 @@ function FallTab({ jegere, onShowInMap }: { jegere: { navn: string; callsign: st
       </form>
       {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
       {loading ? <div>Laster...</div> : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 17 }}>
-          <thead>
-            <tr>
-              <th>Dato</th>
-              <th>Lat</th>
-              <th>Lng</th>
-              <th>Type</th>
-              <th>Vekt</th>
-              <th>Skytter</th>
-            </tr>
-          </thead>
-          <tbody>
-            {fall.map((f, i) => (
-              <tr key={i}>
-                <td>{f.dato}</td>
-                <td>{f.lat.toFixed(3)}</td>
-                <td>{f.lng.toFixed(3)}</td>
-                <td>{f.type}</td>
-                <td>{f.vekt}</td>
-                <td>{f.skytter}</td>
+        <div style={{ background: '#f8f8ff', border: '1px solid #b2d8f6', borderRadius: 12, padding: 18, marginTop: 12, boxShadow: '0 2px 8px #0001', maxWidth: 700, marginLeft: 'auto', marginRight: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 17 }}>
+            <thead>
+              <tr style={{ background: '#e0eaff' }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Dato</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Lat</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Lng</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Type</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Vekt (kg)</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 1, padding: 8, textAlign: 'right' }}>Skytter</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {fall.map((f, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? '#fafdff' : '#f0f6fa' }}>
+                  <td style={{ padding: 8, textAlign: 'right' }}>{f.dato}</td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>{f.lat.toFixed(3)}</td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>{f.lng.toFixed(3)}</td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>{f.type}</td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>{f.vekt}</td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>{f.skytter}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+    </section>
+  );
+}
+
+function ElgAITab() {
+  return (
+    <section>
+      <h2 style={{ fontSize: 20, marginBottom: 8 }}>ElgAI – Smart postvalg</h2>
+      <div style={{ background: '#f8f8ff', border: '1px solid #d2d2e2', borderRadius: 10, padding: 24, maxWidth: 600, margin: '0 auto', minHeight: 180 }}>
+        <div style={{ color: '#888', fontSize: 16, marginBottom: 12 }}>
+          Her kommer en AI-chat som hjelper deg å velge smarte poster basert på vær, jegere og om vi har tilgang til hund eller kun må postere.
+        </div>
+        <div style={{ color: '#aaa', fontSize: 15 }}>
+          (Placeholder: AI-funksjonalitet og chat kommer snart!)
+        </div>
+      </div>
     </section>
   );
 }
@@ -1616,7 +1634,7 @@ export default function Home() {
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sandbekken IT & Drift</h1>
       </header>
         <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
-          <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter", "Fall"]} current={activeTab} onChange={setActiveTab} />
+          <Tabs tabs={["Vær", "Postvær", "Trekk din post!", "Dagens poster", "Kart", "Mørning", "Elgposter", "Fall", "ElgAI"]} current={activeTab} onChange={setActiveTab} />
       </div>
         {activeTab === "Vær" && (
           <section>
@@ -1770,6 +1788,7 @@ export default function Home() {
         {activeTab === "Fall" && (
           <FallTab jegere={ELGJEGERE} />
         )}
+        {activeTab === "ElgAI" && <ElgAITab />}
     </div>
     </>
   );
