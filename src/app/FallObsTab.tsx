@@ -12,6 +12,10 @@ export default function FallObsTab({ jegere, fallObs, setFallObs, loading }: {
   const [editFall, setEditFall] = useState<{
     dato: string; lat: string; lng: string; type: string; retning: string; antall: string; kategori: 'fall' | 'obs'; person: string;
   } | null>(null);
+  // Nytt skjema for å legge til
+  const [nyFall, setNyFall] = useState<{
+    dato: string; lat: string; lng: string; type: string; retning: string; antall: string; kategori: 'fall' | 'obs'; person: string;
+  }>({ dato: '', lat: '', lng: '', type: '', retning: '', antall: '', kategori: 'fall', person: '' });
 
   async function handleSaveEdit(idx: number) {
     if (!editFall || !editFall.dato || !editFall.lat || !editFall.lng || !editFall.type || !editFall.retning || !editFall.antall || !editFall.kategori) {
@@ -41,9 +45,43 @@ export default function FallObsTab({ jegere, fallObs, setFallObs, loading }: {
     setEditFall(null);
     // Lagring til supabase skjer i parent
   }
+  function handleAddFall(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!nyFall.dato || !nyFall.lat || !nyFall.lng || !nyFall.type || !nyFall.retning || !nyFall.antall || !nyFall.kategori) {
+      setError('Fyll ut alle felter');
+      return;
+    }
+    const nytt: FallObs = {
+      dato: nyFall.dato,
+      lat: Number(nyFall.lat),
+      lng: Number(nyFall.lng),
+      type: nyFall.type,
+      retning: nyFall.retning,
+      antall: Number(nyFall.antall),
+      kategori: nyFall.kategori,
+      person: nyFall.person || ''
+    };
+    setFallObs([nytt, ...fallObs]);
+    setNyFall({ dato: '', lat: '', lng: '', type: '', retning: '', antall: '', kategori: 'fall', person: '' });
+  }
   return (
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Logg elgfall og observasjoner</h2>
+      <form onSubmit={handleAddFall} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 14, background: '#fafdff', border: '1px solid #dde', borderRadius: 8, padding: 10 }}>
+        <input type="date" value={nyFall.dato} onChange={e => setNyFall(f => ({ ...f, dato: e.target.value }))} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 120 }} required />
+        <input type="number" step="any" placeholder="Lat" value={nyFall.lat} onChange={e => setNyFall(f => ({ ...f, lat: e.target.value }))} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 90 }} required />
+        <input type="number" step="any" placeholder="Lng" value={nyFall.lng} onChange={e => setNyFall(f => ({ ...f, lng: e.target.value }))} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 90 }} required />
+        <input type="text" placeholder="Type (f.eks. Okse)" value={nyFall.type} onChange={e => setNyFall(f => ({ ...f, type: e.target.value }))} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 90 }} required />
+        <input type="text" placeholder="Retning" value={nyFall.retning} onChange={e => setNyFall(f => ({ ...f, retning: e.target.value }))} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 90 }} required />
+        <input type="number" placeholder="Antall" value={nyFall.antall} onChange={e => setNyFall(f => ({ ...f, antall: e.target.value }))} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 70 }} required />
+        <select value={nyFall.kategori} onChange={e => setNyFall(f => ({ ...f, kategori: e.target.value as 'fall' | 'obs' }))} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 90 }}>
+          <option value="obs">Observasjon</option>
+          <option value="fall">Fall</option>
+        </select>
+        <input type="text" placeholder="Skytter/observatør" value={nyFall.person} onChange={e => setNyFall(f => ({ ...f, person: e.target.value }))} style={{ fontSize: 15, padding: 4, borderRadius: 5, width: 110 }} />
+        <button type="submit" style={{ padding: '6px 14px', borderRadius: 7, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Legg til</button>
+      </form>
       {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
       {loading ? <div>Laster...</div> : (
         <div style={{ background: '#f8f8ff', border: '1px solid #b2d8f6', borderRadius: 12, padding: 18, marginTop: 12, boxShadow: '0 2px 8px #0001', maxWidth: 900, marginLeft: 'auto', marginRight: 'auto' }}>

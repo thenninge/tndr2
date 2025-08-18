@@ -38,8 +38,13 @@ export default function MapSection({ position, posts, dagensPosterInfo, selected
   // Dynamisk ikonstørrelse basert på zoom (mellom 10 og 22 px)
   function getDotIcon(color: string) {
     const size = Math.max(10, Math.min(22, zoom * 1.2));
+    const svg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'%3E%3Ccircle cx='${size/2}' cy='${size/2}' r='${size/2-2}' fill='${color}' stroke='white' stroke-width='2'/%3E%3C/svg%3E`;
+    // Debug: logg SVG-data-url for fall og obs
+    if (color === '#a259e6' || color === '#ffe066') {
+      console.log('SVG for', color, svg);
+    }
     return new L.Icon({
-      iconUrl: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'%3E%3Ccircle cx='${size/2}' cy='${size/2}' r='${size/2-2}' fill='${color}' stroke='white' stroke-width='2'/%3E%3C/svg%3E`,
+      iconUrl: svg,
       iconSize: [size, size],
       iconAnchor: [size/2, size/2],
       popupAnchor: [0, -size/2],
@@ -176,6 +181,7 @@ export default function MapSection({ position, posts, dagensPosterInfo, selected
             opacity={layer.opacity ?? 1.0}
           />
         )}
+        {/* Poster (tilbake til getDotIcon) */}
         {posts.map((post, idx) => {
           const isElghytta = post.name.trim().toUpperCase() === 'ELGHYTTA';
           const icon = post.visBlatt ? getDotIcon('blue') : getDotIcon(isElghytta ? 'green' : 'red');
@@ -186,9 +192,13 @@ export default function MapSection({ position, posts, dagensPosterInfo, selected
             </Marker>
           );
         })}
-        {/* Fall-markører (dus gul) */}
+        {/* Fall (oransje ikon, vis alle) */}
         {fall && fall.map((f, i) => (
-          <Marker key={"fall"+i} position={[f.lat, f.lng]} icon={getXIcon('#ffe066')}>
+          <Marker
+            key={`fall${i}`}
+            position={[f.lat, f.lng]}
+            icon={getDotIcon('orange')}
+          >
             <Popup>
               <b>Elgfall</b><br/>
               {f.dato}<br/>
@@ -197,9 +207,14 @@ export default function MapSection({ position, posts, dagensPosterInfo, selected
             </Popup>
           </Marker>
         ))}
-        {/* Obs-markører (klar gul) */}
+
+        {/* Obs (gule ikoner) */}
         {obs && obs.map((f, i) => (
-          <Marker key={"obs"+i} position={[f.lat, f.lng]} icon={getXIcon('#FFD600')}>
+          <Marker
+            key={`obs${i}`}
+            position={[f.lat, f.lng]}
+            icon={getDotIcon('yellow')}
+          >
             <Popup>
               <b>Observasjon</b><br/>
               {f.dato}<br/>
