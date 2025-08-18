@@ -33,6 +33,7 @@ import { DEFAULT_POSITION, HourlyForecast, ForecastDay, Post, TrekkData, Jeger, 
 import MorningTab from './MorningTab';
 
 // Type-definisjoner for hele appen
+
 export type Post = {
   nr: number;
   name: string;
