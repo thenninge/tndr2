@@ -169,7 +169,7 @@ export default function PostvaerTab() {
         )}
       </div>
       <div style={{ marginBottom: 16 }}>
-        <button onClick={fetchWeatherForPosts} disabled={selectedPosts.every((v) => !v) || loading || (timeOption==='custom' && (!customFrom || !customTo))} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Hent værmelding</button>
+        <button onClick={fetchWeatherForPosts} disabled={selectedPosts.every((v: boolean) => !v) || loading || (timeOption==='custom' && (!customFrom || !customTo))} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Hent værmelding</button>
       </div>
       {loading && <div>Laster værdata...</div>}
       {sortedWeatherData.length > 0 && sortedWeatherData.map(({post, hourly}) => (
