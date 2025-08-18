@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import type { Logger } from "./constants";
 import DgLogger from "./page";
 
-export default function MorningTab({ loggers, setLoggers }: { loggers: Logger[]; setLoggers: (l: Logger[]) => void }) {
+export default function MorningTab({ loggers, setLoggers }: { loggers: Logger[]; setLoggers: React.Dispatch<React.SetStateAction<Logger[]>> }) {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   return (
@@ -12,7 +12,7 @@ export default function MorningTab({ loggers, setLoggers }: { loggers: Logger[];
         <button onClick={() => setShowAdd(v => !v)} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Legg til ny logg</button>
       </div>
       {showAdd && (
-        <form onSubmit={e => { e.preventDefault(); if (newName.trim()) { setLoggers((l: Logger[]) => [...l, {
+        <form onSubmit={e => { e.preventDefault(); if (newName.trim()) { setLoggers(l => [...l, {
           id: Date.now() + Math.random() + '',
           name: newName.trim(),
           lat: 60.7249,
@@ -35,7 +35,7 @@ export default function MorningTab({ loggers, setLoggers }: { loggers: Logger[];
           key={l.id}
           logger={l}
           onChange={updated => setLoggers(loggers => loggers.map(x => x.id === l.id ? updated : x))}
-          onDelete={() => setLoggers((loggers: Logger[]) => loggers.filter((x: Logger) => x.id !== l.id))}
+          onDelete={() => setLoggers(loggers => loggers.filter((x: Logger) => x.id !== l.id))}
         />
       ))}
     </section>
