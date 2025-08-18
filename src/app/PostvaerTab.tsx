@@ -74,7 +74,7 @@ export default function PostvaerTab() {
         windDir: data.hourly.winddirection_10m[idx],
         weatherCode: data.hourly.weathercode[idx],
         precipitation: data.hourly.precipitation[idx],
-      })).filter((h: { time: string; temp: number; windSpeed: number; windDir: number; weatherCode: number; precipitation: number }) => {
+      })).filter((h: Hour) => {
         const ht = new Date(h.time);
         return ht >= from && ht <= to;
       });
