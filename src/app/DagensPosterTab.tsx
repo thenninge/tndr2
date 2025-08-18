@@ -129,7 +129,7 @@ export default function DagensPosterTab() {
                   let arr = ELGPOSTER.map((p, idx) => ({ ...p, idx }));
                   if (sortBy === 'omrade') {
                     arr = arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || a.name.localeCompare(b.name));
-                    const grouped = {};
+                    const grouped: Record<string, typeof arr> = {};
                     arr.forEach(p => {
                       if (!grouped[p.omrade]) grouped[p.omrade] = [];
                       grouped[p.omrade].push(p);
