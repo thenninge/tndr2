@@ -30,6 +30,7 @@ import { WindArrow, weatherIcon, windDirectionText } from './utils/weatherUtils'
 
 // Fjern alle exporterte konstanter og typer fra denne filen. Flytt til src/app/constants.ts og importer dem her.
 import { DEFAULT_POSITION, HourlyForecast, ForecastDay, Post, TrekkData, Jeger, WeatherData } from './constants';
+import MorningTab from './MorningTab';
 
 // Type-definisjoner for hele appen
 export type Post = {
