@@ -4,25 +4,25 @@ import { ELGPOSTER } from "./elgposter";
 export default function ElgposterTab() {
   const [sortBy, setSortBy] = useState<'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta'>('omrade');
 
-  let arr = ELGPOSTER.map((p, idx) => ({ ...p, idx }));
+  const arr = ELGPOSTER.map((p, idx) => ({ ...p, idx }));
   if (sortBy === 'omrade') {
-    arr = arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || a.name.localeCompare(b.name));
+    arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || a.name.localeCompare(b.name));
   } else {
     switch (sortBy) {
       case 'nord-sor':
-        arr = arr.sort((a, b) => b.lat - a.lat); break;
+        arr.sort((a, b) => b.lat - a.lat); break;
       case 'sor-nord':
-        arr = arr.sort((a, b) => a.lat - b.lat); break;
+        arr.sort((a, b) => a.lat - b.lat); break;
       case 'ost-vest':
-        arr = arr.sort((a, b) => b.lng - a.lng); break;
+        arr.sort((a, b) => b.lng - a.lng); break;
       case 'vest-ost':
-        arr = arr.sort((a, b) => a.lng - b.lng); break;
+        arr.sort((a, b) => a.lng - b.lng); break;
       case 'alfabetisk':
-        arr = arr.sort((a, b) => a.name.localeCompare(b.name)); break;
+        arr.sort((a, b) => a.name.localeCompare(b.name)); break;
       case 'nummerert':
-        arr = arr.sort((a, b) => a.nr - b.nr); break;
+        arr.sort((a, b) => a.nr - b.nr); break;
       case 'hytta':
-        arr = arr.sort((a, b) => {
+        arr.sort((a, b) => {
           const distA = Math.sqrt(Math.pow(a.lat - 60.72479028725314, 2) + Math.pow(a.lng - 9.036607137866255, 2));
           const distB = Math.sqrt(Math.pow(b.lat - 60.72479028725314, 2) + Math.pow(b.lng - 9.036607137866255, 2));
           return distA - distB;
@@ -31,7 +31,7 @@ export default function ElgposterTab() {
   }
 
   // Område-gruppering for visning
-  let grouped: { [omrade: string]: typeof arr } = {};
+  const grouped: { [omrade: string]: typeof arr } = {};
   if (sortBy === 'omrade') {
     arr.forEach(p => {
       if (!grouped[p.omrade]) grouped[p.omrade] = [];
@@ -45,7 +45,7 @@ export default function ElgposterTab() {
       <div style={{ marginBottom: 14 }}>
         <label style={{ fontWeight: 400, fontSize: 15 }}>
           Sorter postliste:
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} style={{ marginLeft: 6, fontSize: 15, padding: 3, borderRadius: 5 }}>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ marginLeft: 6, fontSize: 15, padding: 3, borderRadius: 5 }}>
             <option value="omrade">Område-sortering</option>
             <option value="nord-sor">Nord → Sør</option>
             <option value="sor-nord">Sør → Nord</option>

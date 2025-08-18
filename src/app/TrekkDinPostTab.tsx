@@ -12,7 +12,7 @@ export default function PostTrekkTab() {
   const [expanderOpen, setExpanderOpen] = useState(false);
   const [drawn, setDrawn] = useState<{ postIdx: number; jeger: string }[]>([]);
   const [selectedJeger, setSelectedJeger] = useState('');
-  const [sortBy, setSortBy] = useState('alfabetisk');
+  const [sortBy, setSortBy] = useState<'alfabetisk'|'original'>('alfabetisk');
   const [showAuto, setShowAuto] = useState(false);
   const [autoJegere, setAutoJegere] = useState<string[]>([]);
   const [sending, setSending] = useState(false);

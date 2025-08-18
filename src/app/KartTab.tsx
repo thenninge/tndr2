@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import { ELGPOSTER } from "./elgposter";
+import type { Elgpost } from "./types";
 import { FallObs } from "./types";
 
 const MapSection = dynamic(() => import("./MapSection"), { ssr: false });
 
 interface KartTabProps {
-  postsToShow: any[];
-  setElgposter: (posts: any[]) => void;
+  postsToShow: Elgpost[];
+  setElgposter: (posts: Elgpost[]) => void;
   DEFAULT_POSITION: [number, number];
   kartVisning: 'alle' | 'dagens';
   setKartVisning: (v: 'alle' | 'dagens') => void;
@@ -41,10 +42,7 @@ export default function KartTab({
   const [showTrekkruter, setShowTrekkruter] = useState(false); // Forberedt, ikke i bruk ennå
 
   // Riktig filtrering:
-  let filteredPosts: any[] = [];
-  if (showPoster) {
-    filteredPosts = kartVisning === 'alle' ? ELGPOSTER : postsToShow;
-  } // ellers tom liste
+  const filteredPosts: Elgpost[] = showPoster ? (kartVisning === 'alle' ? ELGPOSTER : postsToShow) : [];
 
   return (
     <section>

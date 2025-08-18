@@ -8,7 +8,7 @@ export default function DagensPosterTab() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [sortBy, setSortBy] = useState('alfabetisk');
+  const [sortBy, setSortBy] = useState<'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta'>('alfabetisk');
   useEffect(() => {
     setLoading(true);
     fetch("/api/dagensposter")
@@ -71,7 +71,7 @@ export default function DagensPosterTab() {
   const [showAddRow, setShowAddRow] = useState(false);
   const [addPostIdx, setAddPostIdx] = useState('');
   const [addJeger, setAddJeger] = useState('');
-  const [addSortBy, setAddSortBy] = useState('alfabetisk');
+  const [addSortBy, setAddSortBy] = useState<'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta'>('alfabetisk');
   async function handleAddRow(e: React.FormEvent) {
     e.preventDefault();
     if (!addPostIdx || !addJeger) return;
@@ -110,7 +110,7 @@ export default function DagensPosterTab() {
             <b>1. Velg poster:</b>
             <label style={{ fontWeight: 400, fontSize: 15 }}>
               Sorter postliste:
-              <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} style={{ marginLeft: 6, fontSize: 15, padding: 3, borderRadius: 5 }}>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ marginLeft: 6, fontSize: 15, padding: 3, borderRadius: 5 }}>
                 <option value="omrade">Område-sortering</option>
                 <option value="nord-sor">Nord → Sør</option>
                 <option value="sor-nord">Sør → Nord</option>
@@ -249,7 +249,7 @@ export default function DagensPosterTab() {
               <option key={j.navn} value={j.navn}>{j.navn}</option>
             ))}
           </select>
-          <select value={addSortBy} onChange={e => setAddSortBy(e.target.value as any)} style={{ fontSize: 15, padding: 3, borderRadius: 5, marginLeft: 8 }}>
+          <select value={addSortBy} onChange={e => setAddSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ fontSize: 15, padding: 3, borderRadius: 5, marginLeft: 8 }}>
             <option value="omrade">Område-sortering</option>
             <option value="nord-sor">Nord → Sør</option>
             <option value="sor-nord">Sør → Nord</option>

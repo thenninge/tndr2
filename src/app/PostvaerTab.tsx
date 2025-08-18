@@ -32,7 +32,7 @@ export default function PostvaerTab() {
     }
   }, [weatherData]);
   const [loading, setLoading] = useState(false);
-  const [sortBy, setSortBy] = useState('alfabetisk');
+  const [sortBy, setSortBy] = useState<'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'omrade'|'alfabetisk'>('alfabetisk');
 
   // Sorter ELGPOSTER alfabetisk for visning
   const sortedIdx = ELGPOSTER
@@ -127,12 +127,13 @@ export default function PostvaerTab() {
         </button>
         <div>
           <b>Sorter etter:</b>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as 'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'omrade'|'alfabetisk')} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
             <option value="nord-sor">Nord → Sør</option>
             <option value="sor-nord">Sør → Nord</option>
             <option value="ost-vest">Øst → Vest</option>
             <option value="vest-ost">Vest → Øst</option>
             <option value="omrade">Område</option>
+            <option value="alfabetisk">Alfabetisk</option>
           </select>
         </div>
         <button onClick={handleClearSelection} style={{ marginLeft: 12, padding: '8px 18px', borderRadius: 8, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 16, cursor: 'pointer' }}>Slett valg</button>

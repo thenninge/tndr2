@@ -992,25 +992,13 @@ export default function Home() {
           />
         )}
         {activeTab === "Postvær" && (
-          <PostvaerTab
-            elgposter={elgposter}
-            // legg til alle relevante props fra page.tsx
-          />
+          <PostvaerTab />
         )}
         {activeTab === "Post-trekk" && (
-          <PostTrekkTab
-            posts={elgposter}
-            trekkData={trekkData}
-            setTrekkData={setTrekkData}
-            // legg til flere props om nødvendig
-          />
+          <PostTrekkTab />
         )}
         {activeTab === "Dagens poster" && (
-          <DagensPosterTab
-            posts={elgposter}
-            jegere={ELGJEGERE}
-            // legg til flere props om nødvendig
-          />
+          <DagensPosterTab />
         )}
         {activeTab === "Kart" && (
           <KartTab
@@ -1027,7 +1015,6 @@ export default function Home() {
             fallObs={fallObs}
             mapLayer={mapLayer}
             setMapLayer={setMapLayer}
-            // legg til flere props om nødvendig
           />
         )}
         {activeTab === "Mørning" && (
@@ -1066,10 +1053,7 @@ export default function Home() {
       </section>
         )}
         {activeTab === "Elgposter" && (
-          <ElgposterTab
-            posts={posts}
-            setPosts={setPosts}
-          />
+          <ElgposterTab />
         )}
         {activeTab === "Fall/Obs" && <FallObsTab jegere={ELGJEGERE} fallObs={fallObs} setFallObs={setFallObs} loading={loadingFallObs} />}
         {activeTab === "ElgAI" && <JaktAI />}
