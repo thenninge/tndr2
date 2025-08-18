@@ -81,7 +81,17 @@ export const FALL: FallObs[] = [
     antall: 2,
     kategori: "obs",
     person: ""
-  }
+  },
+  {
+    dato: "2024-11-24",
+    lat: 60.739663310233915,
+    lng: 9.030913408357684,
+    type: "ukjent",
+    retning: "ukjent",
+    antall: 1,
+    kategori: "obs",
+    person: ""
+  },
 ];
 
 export const TREKKRUTER: Trekkrute[] = [
