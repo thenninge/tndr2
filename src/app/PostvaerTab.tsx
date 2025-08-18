@@ -41,7 +41,7 @@ export default function PostvaerTab() {
     .map(x => x.idx);
 
   function handleToggle(idx: number) {
-    setSelectedPosts((sel) => sel.map((v, i) => i === idx ? !v : v));
+    setSelectedPosts((sel: boolean[]) => sel.map((v, i) => i === idx ? !v : v));
   }
 
   async function fetchWeatherForPosts() {
