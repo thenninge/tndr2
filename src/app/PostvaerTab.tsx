@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { ELGPOSTER } from "./elgposter";
 import { WindArrow, weatherIcon, windDirectionText } from "./utils/weatherUtils";
 
+type Hour = { time: string; temp: number; windSpeed: number; windDir: number; weatherCode: number; precipitation: number };
+
 export default function PostvaerTab() {
   const [selectedPosts, setSelectedPosts] = useState(() => {
     if (typeof window !== "undefined") {
