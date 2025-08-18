@@ -32,29 +32,6 @@ import { WindArrow, weatherIcon, windDirectionText } from './utils/weatherUtils'
 import { DEFAULT_POSITION, HourlyForecast, ForecastDay, Post, TrekkData, Jeger, WeatherData } from './constants';
 import MorningTab from './MorningTab';
 
-// Type-definisjoner for hele appen
-
-export type Post = {
-  nr: number;
-  name: string;
-  lat: number;
-  lng: number;
-  omrade: string;
-};
-export type TrekkData = {
-  postIdx: number;
-  jeger: string;
-};
-export type Jeger = {
-  navn: string;
-  callsign: string;
-};
-
-export type WeatherData = {
-  post: Post;
-  hourly: HourlyForecast[];
-};
-
 // Enkel Tab-komponent
 function Tabs({ tabs, current, onChange }: { tabs: string[]; current: string; onChange: (tab: string) => void }) {
   return (
