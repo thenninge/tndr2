@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { Logger } from "./page";
+import type { Logger } from "./constants";
 import DgLogger from "./page";
 
 export default function MorningTab({ loggers, setLoggers }: { loggers: Logger[]; setLoggers: (l: Logger[]) => void }) {
