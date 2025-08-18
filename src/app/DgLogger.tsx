@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Logger } from './constants';
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
 function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l: Logger) => void; onDelete?: () => void }) {
   const [loading, setLoading] = useState(false);
