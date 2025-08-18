@@ -28,25 +28,8 @@ import ElgposterTab from './ElgposterTab';
 import JaktAI from './JaktAI';
 import { WindArrow, weatherIcon, windDirectionText } from './utils/weatherUtils';
 
-// Definer eller importer manglende typer og konstanter:
-export interface HourlyForecast {
-  time: string;
-  temp: number;
-  windSpeed: number;
-  windDir: number;
-  weatherCode: number;
-  precipitation: number;
-}
-export interface ForecastDay {
-  date: string;
-  tempMin: number;
-  tempMax: number;
-  windSpeed: number;
-  windDir: number;
-  weatherCode: number;
-  precipitation: number;
-}
-export const DEFAULT_POSITION: [number, number] = [60.72491439929582, 9.036524928167466];
+// Fjern alle exporterte konstanter og typer fra denne filen. Flytt til src/app/constants.ts og importer dem her.
+import { DEFAULT_POSITION, HourlyForecast, ForecastDay, Post, TrekkData, Jeger, WeatherData } from './constants';
 
 // Type-definisjoner for hele appen
 export type Post = {
