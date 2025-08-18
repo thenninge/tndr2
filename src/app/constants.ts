@@ -43,3 +43,16 @@ export type WeatherData = {
   post: Post;
   hourly: HourlyForecast[];
 };
+
+export type Logger = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  startTime: number | null;
+  target: number;
+  offset: number;
+  accelerated: boolean;
+  running: boolean;
+  simulatedElapsed: number; // minutter
+};
