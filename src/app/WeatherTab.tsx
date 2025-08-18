@@ -1,6 +1,6 @@
 import React from "react";
 import { WindArrow, weatherIcon, windDirectionText } from "./utils/weatherUtils";
-import type { HourlyForecast, ForecastDay } from "./page";
+import type { HourlyForecast, ForecastDay } from "./constants";
 
 interface WeatherTabProps {
   hourly: HourlyForecast[];
