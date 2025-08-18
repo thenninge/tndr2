@@ -12,7 +12,7 @@ export default function MorningTab({ loggers, setLoggers }: { loggers: Logger[];
         <button onClick={() => setShowAdd(v => !v)} style={{ padding: '8px 18px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer' }}>Legg til ny logg</button>
       </div>
       {showAdd && (
-        <form onSubmit={e => { e.preventDefault(); if (newName.trim()) { setLoggers(l => [...l, {
+        <form onSubmit={e => { e.preventDefault(); if (newName.trim()) { setLoggers((l: Logger[]) => [...l, {
           id: Date.now() + Math.random() + '',
           name: newName.trim(),
           lat: 60.7249,
