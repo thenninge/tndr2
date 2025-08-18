@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { useState, useEffect } from "react";
 import { useMapEvent, useMap } from "react-leaflet";
 import type { Elgpost } from "./types";
-import type { Fall } from "./types";
+import type { FallObs } from "./types";
 
 interface MapSectionProps {
   position: [number, number];
@@ -13,10 +13,11 @@ interface MapSectionProps {
   setPosts: React.Dispatch<React.SetStateAction<Elgpost[]>>;
   dagensPosterInfo?: Array<{postIdx: number, jeger: string, callsign: string}>;
   selectedLayer?: string;
-  fall?: Fall[];
+  fall?: FallObs[];
+  obs?: FallObs[];
 }
 
-export default function MapSection({ position, posts, dagensPosterInfo, selectedLayer = 'satellite', fall }: MapSectionProps) {
+export default function MapSection({ position, posts, dagensPosterInfo, selectedLayer = 'satellite', fall, obs }: MapSectionProps) {
   const [zoom, setZoom] = useState(16);
   const [satOpacity, setSatOpacity] = useState(1.0);
   const [topoOpacity, setTopoOpacity] = useState(0.5);
@@ -45,10 +46,10 @@ export default function MapSection({ position, posts, dagensPosterInfo, selected
     });
   }
 
-  function getXIcon() {
+  function getXIcon(color: string) {
     const size = Math.max(16, Math.min(28, zoom * 1.4));
     return new L.Icon({
-      iconUrl: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'%3E%3Cline x1='4' y1='4' x2='${size-4}' y2='${size-4}' stroke='%23FFD600' stroke-width='3'/%3E%3Cline x1='${size-4}' y1='4' x2='4' y2='${size-4}' stroke='%23FFD600' stroke-width='3'/%3E%3C/svg%3E`,
+      iconUrl: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}'%3E%3Cline x1='4' y1='4' x2='${size-4}' y2='${size-4}' stroke='${color}' stroke-width='3'/%3E%3Cline x1='${size-4}' y1='4' x2='4' y2='${size-4}' stroke='${color}' stroke-width='3'/%3E%3C/svg%3E`,
       iconSize: [size, size],
       iconAnchor: [size/2, size/2],
       popupAnchor: [0, -size/2],
@@ -185,14 +186,25 @@ export default function MapSection({ position, posts, dagensPosterInfo, selected
             </Marker>
           );
         })}
-        {/* Fall-markører */}
+        {/* Fall-markører (dus gul) */}
         {fall && fall.map((f, i) => (
-          <Marker key={"fall"+i} position={[f.lat, f.lng]} icon={getXIcon()}>
+          <Marker key={"fall"+i} position={[f.lat, f.lng]} icon={getXIcon('#ffe066')}>
             <Popup>
               <b>Elgfall</b><br/>
               {f.dato}<br/>
-              {f.type}, {f.vekt} kg<br/>
-              Skytter: {f.skytter}
+              {f.type}, {f.antall} stk<br/>
+              Retning: {f.retning}
+            </Popup>
+          </Marker>
+        ))}
+        {/* Obs-markører (klar gul) */}
+        {obs && obs.map((f, i) => (
+          <Marker key={"obs"+i} position={[f.lat, f.lng]} icon={getXIcon('#FFD600')}>
+            <Popup>
+              <b>Observasjon</b><br/>
+              {f.dato}<br/>
+              {f.type}, {f.antall} stk<br/>
+              Retning: {f.retning}
             </Popup>
           </Marker>
         ))}
