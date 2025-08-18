@@ -67,7 +67,7 @@ export default function PostvaerTab() {
       const res = await fetch(url);
       const data = await res.json();
       // Filtrer hourly på valgt tidsrom
-      const hours = (data.hourly?.time || []).map((t, idx) => ({
+      const hours = (data.hourly?.time || []).map((t: string, idx: number) => ({
         time: t,
         temp: data.hourly.temperature_2m[idx],
         windSpeed: data.hourly.windspeed_10m[idx],
