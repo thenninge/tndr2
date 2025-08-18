@@ -187,7 +187,7 @@ export default function PostvaerTab() {
               </tr>
             </thead>
             <tbody>
-              {hourly.map((h) => (
+              {hourly.map((h: import("./constants").HourlyForecast) => (
                 <tr key={h.time}>
                   <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</td>
                   <td style={{ padding: 4 }}>{h.temp}°C</td>
