@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { Logger } from "./constants";
-import DgLogger from "./page";
+import DgLogger from './DgLogger';
 
 export default function MorningTab({ loggers, setLoggers }: { loggers: Logger[]; setLoggers: React.Dispatch<React.SetStateAction<Logger[]>> }) {
   const [showAdd, setShowAdd] = useState(false);
