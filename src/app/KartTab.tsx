@@ -8,7 +8,7 @@ const MapSection = dynamic(() => import("./MapSection"), { ssr: false });
 
 interface KartTabProps {
   postsToShow: Elgpost[];
-  setElgposter: (posts: Elgpost[]) => void;
+  setElgposter: React.Dispatch<React.SetStateAction<Elgpost[]>>;
   DEFAULT_POSITION: [number, number];
   kartVisning: 'alle' | 'dagens';
   setKartVisning: (v: 'alle' | 'dagens') => void;
