@@ -984,7 +984,7 @@ export default function Home() {
           <MorningTab loggers={loggers} setLoggers={setLoggers} />
         )}
         {activeTab === "Mørning2" && (
-          <ImprovedMorningTab loggers={loggers} setLoggers={setLoggers} />
+          <ImprovedMorningTab />
         )}
         {activeTab === "Elgposter" && (
           <ElgposterTab />
