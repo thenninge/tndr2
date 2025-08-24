@@ -137,10 +137,10 @@ export default function DagensPosterTab() {
                     return Object.entries(grouped).flatMap(([omrade, posts]) => [
                       <li key={omrade} style={{ margin: '8px 0 2px 0', fontWeight: 700, fontSize: 15, color: '#444' }}>{omrade}</li>,
                       ...posts.map(p => (
-                        <li key={p.nr+p.name} style={{ marginBottom: 4, marginLeft: 8 }}>
+                        <li key={p.nr+(p.name || '')} style={{ marginBottom: 4, marginLeft: 8 }}>
                           <label style={{ cursor: 'pointer', fontSize: 16 }}>
                             <input type="checkbox" checked={selectedPosts.includes(p.idx)} onChange={() => handleTogglePost(p.idx)} style={{ marginRight: 7 }} />
-                            {p.name}
+                            {p.name || ''}
                           </label>
                         </li>
                       ))
@@ -167,10 +167,10 @@ export default function DagensPosterTab() {
                       }); break;
                   }
                   return arr.map(p => (
-                    <li key={p.nr+p.name} style={{ marginBottom: 4 }}>
+                    <li key={p.nr+(p.name || '')} style={{ marginBottom: 4 }}>
                       <label style={{ cursor: 'pointer', fontSize: 16 }}>
                         <input type="checkbox" checked={selectedPosts.includes(p.idx)} onChange={() => handleTogglePost(p.idx)} style={{ marginRight: 7 }} />
-                        {p.name}
+                        {p.name || ''}
                       </label>
                     </li>
                   ));
@@ -181,7 +181,7 @@ export default function DagensPosterTab() {
               <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 6, color: '#1a4b7a' }}>Valgte poster:</div>
               {selectedPosts.length === 0 ? <div style={{ color: '#888', fontSize: 16 }}>Ingen valgt</div> :
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {selectedPosts.map(idx => <li key={idx} style={{ marginBottom: 2 }}>{ELGPOSTER[idx].name}</li>)}
+                  {selectedPosts.map(idx => <li key={idx} style={{ marginBottom: 2 }}>{ELGPOSTER[idx].name || ''}</li>)}
                 </ul>
               }
             </div>
@@ -192,7 +192,7 @@ export default function DagensPosterTab() {
               <ul style={{ listStyle: 'none', padding: 0, maxWidth: 500 }}>
                 {selectedPosts.map(idx => (
                   <li key={idx} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ minWidth: 120 }}>{ELGPOSTER[idx].name}</span>
+                    <span style={{ minWidth: 120 }}>{ELGPOSTER[idx].name || ''}</span>
                     <select value={postJeger[idx] || ''} onChange={e => handleSetJeger(idx, e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6 }} required>
                       <option value="">Velg jeger</option>
                       {ELGJEGERE.filter(j => !Object.entries(postJeger).some(([k, v]) => Number(k) !== idx && v === j.navn) || postJeger[idx] === j.navn).map(j => (
@@ -239,7 +239,7 @@ export default function DagensPosterTab() {
                   }); break;
               }
               return arr.map(p => (
-                <option key={p.nr+p.name} value={p.idx}>{p.name}</option>
+                <option key={p.nr+(p.name || '')} value={p.idx}>{p.name || ''}</option>
               ));
             })()}
           </select>
@@ -282,8 +282,8 @@ export default function DagensPosterTab() {
                 const valgt = edit[f.postIdx] ?? f.jeger;
                 const jegerObj = ELGJEGERE.find(j => j.navn === valgt);
                 return (
-                  <tr key={post.nr+post.name}>
-                    <td style={{ padding: 4, fontWeight: 700 }}>{post.name}</td>
+                  <tr key={post.nr+(post.name || '')}>
+                    <td style={{ padding: 4, fontWeight: 700 }}>{post.name || ''}</td>
                     <td style={{ padding: 4 }}>
                       <select value={valgt} onChange={e => setEdit(ed => ({ ...ed, [f.postIdx]: e.target.value }))} style={{ fontSize: 16, padding: 4, borderRadius: 6 }}>
                         <option value="">Velg jeger</option>
