@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
-  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -57,21 +56,21 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
     }
 
           // Convert database format to Logger interface
-      return (data || []).map((dbLogger: any) => ({
-        id: dbLogger.id,
-        name: dbLogger.name,
-        lat: dbLogger.lat,
-        lng: dbLogger.lng,
-        target: dbLogger.target,
-        offset: dbLogger.offset,
-        dayOffset: dbLogger.day_offset,
-        nightOffset: dbLogger.night_offset,
-        baseTemp: dbLogger.base_temp,
-        dataTable: dbLogger.data_table ? JSON.parse(dbLogger.data_table) : [],
-        accumulatedDG: dbLogger.accumulated_dg || 0,
-        lastFetched: dbLogger.last_fetched ? new Date(dbLogger.last_fetched) : undefined,
-        isRunning: dbLogger.is_running || false,
-        startTime: dbLogger.start_time ? new Date(dbLogger.start_time) : undefined,
+      return (data || []).map((dbLogger: Record<string, unknown>) => ({
+        id: dbLogger.id as string,
+        name: dbLogger.name as string,
+        lat: dbLogger.lat as number,
+        lng: dbLogger.lng as number,
+        target: dbLogger.target as number,
+        offset: dbLogger.offset as number,
+        dayOffset: dbLogger.day_offset as number,
+        nightOffset: dbLogger.night_offset as number,
+        baseTemp: dbLogger.base_temp as number,
+        dataTable: dbLogger.data_table ? JSON.parse(dbLogger.data_table as string) : [],
+        accumulatedDG: (dbLogger.accumulated_dg as number) || 0,
+        lastFetched: dbLogger.last_fetched ? new Date(dbLogger.last_fetched as string) : undefined,
+        isRunning: (dbLogger.is_running as boolean) || false,
+        startTime: dbLogger.start_time ? new Date(dbLogger.start_time as string) : undefined,
       }));
   } catch (error) {
     console.error('Error loading loggers:', error);
@@ -226,88 +225,7 @@ async function fetchTempForTime(
 }
 
 /** ===== Estimator ===== **/
-/**
- * Beregn akkumulert DG i 3-timers steg, anker ved startAt (nå).
- * - Starter på nærmeste time (13:00), neste blir 16:00, 19:00, ...
- */
-function calculateEstimate(
-  hourlyPoints: Point[],
-  baseTemp = 0,     // terskel for DG (°C)
-  stepHours = 3,
-  startAt: Date = new Date(),
-  dayOffset = 0,
-  nightOffset = 0,
-  targetDG = 40
-): { result: { time: Date; dg: number }[]; estimatedFinish?: Date } {
-  console.log('=== calculateEstimate called ===');
-  console.log('hourlyPoints length:', hourlyPoints.length);
-  console.log('baseTemp:', baseTemp);
-  console.log('startAt:', startAt);
-  
-  if (hourlyPoints.length === 0) return { result: [], estimatedFinish: undefined };
 
-  const startHour = floorToHour(startAt);
-  console.log('Start hour:', startHour);
-  console.log('First hourly point:', hourlyPoints[0]);
-
-  // Finn første indeks som er >= startHour
-  let i = hourlyPoints.findIndex((p) => p.time >= startHour);
-  console.log('First index >= startHour:', i);
-  if (i === -1) return { result: [], estimatedFinish: undefined };
-
-  // Justér til første indeks som lander på 3-timers rutenettet målt fra startHour
-  const stepMs = stepHours * 3600 * 1000;
-  while (i < hourlyPoints.length) {
-    const delta = hourlyPoints[i].time.getTime() - startHour.getTime();
-    if (delta % stepMs === 0) break;
-    i++;
-  }
-  console.log('Adjusted index for 3-hour grid:', i);
-  if (i >= hourlyPoints.length) return { result: [], estimatedFinish: undefined };
-
-  // Akkumuler DG i 3-timers steg (enkelt rektangelestimat)
-  let cumDG = 0;
-  const out: { time: Date; dg: number }[] = [];
-  let targetReached = false;
-  let hoursAfterTarget = 0;
-  let estimatedFinish: Date | undefined;
-
-  // Legg til startpunkt på 0 DG ved nåværende time
-  out.push({ time: startHour, dg: 0 });
-  console.log('Added start point at:', startHour, 'with 0 DG');
-
-  for (; i < hourlyPoints.length; i += stepHours) {
-    const p = hourlyPoints[i];
-    
-    // Finn riktig offset basert på klokkeslett
-    const periodOffset = getOffsetForTime(p.time, dayOffset, nightOffset);
-    // Temp-offset legges til temperaturen (positiv offset = varmere = raskere mørning)
-    const adjustedTemp = p.temp + periodOffset;
-    
-    const dgHour = Math.max(0, adjustedTemp - baseTemp);
-    cumDG += (dgHour * stepHours) / 24;
-    
-    out.push({ time: p.time, dg: Number(cumDG.toFixed(2)) });
-
-    // Sjekk om target er nådd
-    if (!targetReached && cumDG >= targetDG) {
-      targetReached = true;
-      estimatedFinish = p.time;
-    }
-
-    // Hvis target er nådd, tell timer etter target
-    if (targetReached) {
-      hoursAfterTarget += stepHours;
-      
-      // Stopp etter 12 timer etter target
-      if (hoursAfterTarget >= 12) {
-        break;
-      }
-    }
-  }
-  
-  return { result: out, estimatedFinish };
-}
 
 // Oppdaterer real logg fra sistFetched → nå
 async function refreshRealLog(logger: Logger): Promise<Logger> {
