@@ -81,7 +81,17 @@ function loadLoggersFromLocalStorage(): Logger[] {
     if (stored) {
       const loggers = JSON.parse(stored);
       console.log('📱 Loaded loggers from localStorage:', loggers.length, 'loggers');
-      return loggers;
+      
+      // Convert date strings back to Date objects
+      return loggers.map((logger: any) => ({
+        ...logger,
+        lastFetched: logger.lastFetched ? new Date(logger.lastFetched) : undefined,
+        startTime: logger.startTime ? new Date(logger.startTime) : undefined,
+        dataTable: logger.dataTable?.map((point: any) => ({
+          ...point,
+          timestamp: new Date(point.timestamp)
+        })) || []
+      }));
     }
     return [];
   } catch (error) {
