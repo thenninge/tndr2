@@ -45,18 +45,20 @@ interface Logger {
 /** ===== Database Functions ===== **/
 async function loadLoggersFromDatabase(): Promise<Logger[]> {
   try {
+    console.log('🔄 Loading loggers from database...');
     const { data, error } = await supabase
       .from('morning_loggers')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error loading loggers:', error);
+      console.error('❌ Error loading loggers:', error);
       return [];
     }
 
-          // Convert database format to Logger interface
-      return (data || []).map((dbLogger: Record<string, unknown>) => ({
+    console.log('✅ Loaded loggers from database:', data?.length || 0, 'loggers');
+    // Convert database format to Logger interface
+    return (data || []).map((dbLogger: Record<string, unknown>) => ({
         id: dbLogger.id as string,
         name: dbLogger.name as string,
         lat: dbLogger.lat as number,
@@ -80,6 +82,7 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
 
 async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
   try {
+    console.log('💾 Saving logger to database:', logger.name);
     const { error } = await supabase
       .from('morning_loggers')
       .upsert({
@@ -101,12 +104,13 @@ async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
       });
 
     if (error) {
-      console.error('Error saving logger:', error);
+      console.error('❌ Error saving logger:', error);
       return false;
     }
+    console.log('✅ Successfully saved logger:', logger.name);
     return true;
   } catch (error) {
-    console.error('Error saving logger:', error);
+    console.error('❌ Error saving logger:', error);
     return false;
   }
 }
