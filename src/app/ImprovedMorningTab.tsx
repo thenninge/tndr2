@@ -11,8 +11,21 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { supabase } from '../utils/supabaseClient';
 
 /** ===== Types ===== **/
+interface Point {
+  time: Date;
+  temp: number;
+}
+
+interface DataPoint {
+  timestamp: Date;
+  runtime: number;  // Timer fra start (0 til start-tid, deretter 1, 2, 3...)
+  tempEst: number | null;
+  tempLogg: number | null;
+}
+
 interface Logger {
   id: string;
   name: string;
@@ -30,14 +43,91 @@ interface Logger {
   startTime?: Date;
 }
 
-type Point = { time: Date; temp: number };
+/** ===== Database Functions ===== **/
+async function loadLoggersFromDatabase(): Promise<Logger[]> {
+  try {
+    const { data, error } = await supabase
+      .from('morning_loggers')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-// Ny datastruktur for hver tidspunkt i mørningsloggen
-interface DataPoint {
-  timestamp: Date;      // Tid (dag, time, minutt)
-  runtime: number;      // Hvor lang tid etter start har gått (timer)
-  tempEst: number | null;  // Temperatur fra estimat (forecast)
-  tempLogg: number | null; // Temperatur fra reell logging
+    if (error) {
+      console.error('Error loading loggers:', error);
+      return [];
+    }
+
+          // Convert database format to Logger interface
+      return (data || []).map((dbLogger: any) => ({
+        id: dbLogger.id,
+        name: dbLogger.name,
+        lat: dbLogger.lat,
+        lng: dbLogger.lng,
+        target: dbLogger.target,
+        offset: dbLogger.offset,
+        dayOffset: dbLogger.day_offset,
+        nightOffset: dbLogger.night_offset,
+        baseTemp: dbLogger.base_temp,
+        dataTable: dbLogger.data_table ? JSON.parse(dbLogger.data_table) : [],
+        accumulatedDG: dbLogger.accumulated_dg || 0,
+        lastFetched: dbLogger.last_fetched ? new Date(dbLogger.last_fetched) : undefined,
+        isRunning: dbLogger.is_running || false,
+        startTime: dbLogger.start_time ? new Date(dbLogger.start_time) : undefined,
+      }));
+  } catch (error) {
+    console.error('Error loading loggers:', error);
+    return [];
+  }
+}
+
+async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('morning_loggers')
+      .upsert({
+        id: logger.id,
+        name: logger.name,
+        lat: logger.lat,
+        lng: logger.lng,
+        target: logger.target,
+        offset: logger.offset,
+        day_offset: logger.dayOffset,
+        night_offset: logger.nightOffset,
+        base_temp: logger.baseTemp,
+        data_table: JSON.stringify(logger.dataTable),
+        accumulated_dg: logger.accumulatedDG,
+        last_fetched: logger.lastFetched?.toISOString(),
+        is_running: logger.isRunning,
+        start_time: logger.startTime?.toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      console.error('Error saving logger:', error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error saving logger:', error);
+    return false;
+  }
+}
+
+async function deleteLoggerFromDatabase(loggerId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('morning_loggers')
+      .delete()
+      .eq('id', loggerId);
+
+    if (error) {
+      console.error('Error deleting logger:', error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error deleting logger:', error);
+    return false;
+  }
 }
 
 /** ===== Helpers ===== **/
@@ -270,6 +360,27 @@ export default function ImprovedMorningTab() {
   const [loggers, setLoggers] = useState<Logger[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  // Load loggers from database on component mount
+  useEffect(() => {
+    async function loadLoggers() {
+      setLoading(true);
+      const dbLoggers = await loadLoggersFromDatabase();
+      setLoggers(dbLoggers);
+      setLoading(false);
+    }
+    loadLoggers();
+  }, []);
+
+  // Save loggers to database whenever they change
+  useEffect(() => {
+    if (!loading) {
+      loggers.forEach(async (logger) => {
+        await saveLoggerToDatabase(logger);
+      });
+    }
+  }, [loggers, loading]);
 
   return (
     <section>
@@ -812,7 +923,7 @@ function LoggerCard({
                     minute: "2-digit",
                   })
                 }
-                formatter={(v: number, name: string) => [`${v} DG`, name]}
+                formatter={(v: number, name: string) => [`${v.toFixed(1)} DG`, name]}
               />
               <Legend />
               <Line
@@ -844,11 +955,14 @@ function LoggerCard({
 
       {/* Delete */}
       <button
-        onClick={() =>
+        onClick={async () => {
+          // Delete from database first
+          await deleteLoggerFromDatabase(logger.id);
+          // Then remove from local state
           setLoggers((loggers) =>
             loggers.filter((x: Logger) => x.id !== logger.id)
-          )
-        }
+          );
+        }}
         style={{
           position: "absolute",
           top: 10,
