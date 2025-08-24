@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -105,6 +106,33 @@ async function fetchHistory(
     time: new Date(t),
     temp: data.hourly.temperature_2m[i],
   }));
+}
+
+// Henter temperatur for en spesifikk tid (for akselerert tid)
+async function fetchTempForTime(
+  lat: number,
+  lon: number,
+  time: Date
+): Promise<number | null> {
+  // Bruk forecast API i stedet for archive API for fremtidige datoer
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&timezone=auto`;
+
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+
+  // Finn temperaturen for den spesifikke timen
+  const targetHour = time.getHours();
+  const targetDate = time.toISOString().slice(0, 10);
+  
+  for (let i = 0; i < data.hourly.time.length; i++) {
+    const dataTime = new Date(data.hourly.time[i]);
+    const dataDate = dataTime.toISOString().slice(0, 10);
+    if (dataDate === targetDate && dataTime.getHours() === targetHour) {
+      return data.hourly.temperature_2m[i];
+    }
+  }
+  return null;
 }
 
 /** ===== Estimator ===== **/
@@ -381,6 +409,8 @@ function LoggerCard({
 }) {
   const [estimatedFinish, setEstimatedFinish] = useState<Date | undefined>();
   const [loading, setLoading] = useState(false);
+  const [acceleratedTime, setAcceleratedTime] = useState<Date | undefined>();
+  const [isAccelerating, setIsAccelerating] = useState(false);
 
   // Hent forecast og oppdater dataTable
   useEffect(() => {
@@ -469,6 +499,66 @@ function LoggerCard({
     const interval = setInterval(updateRealLog, 60000); // Oppdater hvert minutt
     return () => clearInterval(interval);
   }, [logger.isRunning, logger.id]);
+
+  // Akselerert tid simulator
+  useEffect(() => {
+    if (!isAccelerating || !logger.isRunning || !logger.startTime) return;
+
+    async function accelerateTime() {
+      try {
+        // Øk tiden med 1 time
+        const currentTime = acceleratedTime || logger.startTime;
+        if (!currentTime) return;
+        
+        const newTime = new Date(currentTime);
+        newTime.setHours(newTime.getHours() + 1);
+        setAcceleratedTime(newTime);
+
+        // Hent temperatur for den nye tiden
+        const temp = await fetchTempForTime(logger.lat, logger.lng, newTime);
+        
+        if (temp !== null) {
+          console.log(`🔍 Søker etter tidspunkt: ${newTime.toLocaleString()}`);
+          console.log(`📊 DataTable har ${logger.dataTable.length} punkter`);
+          
+          // Oppdater dataTable med ny temperatur
+          setLoggers(loggers => loggers.map(l => {
+            if (l.id === logger.id) {
+              let foundMatch = false;
+              const updatedDataTable = l.dataTable.map(point => {
+                // Match tidspunkt med 1 time toleranse (for å håndtere millisekunder)
+                const timeDiff = Math.abs(point.timestamp.getTime() - newTime.getTime());
+                if (timeDiff < 60 * 60 * 1000) { // 1 time i millisekunder
+                  console.log(`✅ MATCH! Oppdaterer tempLogg for ${point.timestamp.toLocaleString()} med ${temp}°C`);
+                  foundMatch = true;
+                  return { ...point, tempLogg: temp };
+                }
+                return point;
+              });
+              
+              if (!foundMatch) {
+                console.log(`❌ INGEN MATCH funnet for ${newTime.toLocaleString()}`);
+                console.log(`🔍 Nærmeste tidspunkt i dataTable:`);
+                l.dataTable.slice(0, 5).forEach((point, i) => {
+                  console.log(`  ${i}: ${point.timestamp.toLocaleString()}`);
+                });
+              }
+              
+              return { ...l, dataTable: updatedDataTable };
+            }
+            return l;
+          }));
+          
+          console.log(`Akselerert tid: ${newTime.toLocaleString()}, Temp: ${temp}°C`);
+        }
+      } catch (err) {
+        console.error("Feil ved akselerert tid:", err);
+      }
+    }
+
+    const interval = setInterval(accelerateTime, 2000); // Hvert 2. sekund
+    return () => clearInterval(interval);
+  }, [isAccelerating, logger.isRunning, logger.startTime, logger.lat, logger.lng, acceleratedTime]);
 
   return (
     <div
@@ -569,21 +659,61 @@ function LoggerCard({
             }}
           />
         </label>
+
+        <button 
+          onClick={() => {
+            if (!isAccelerating) {
+              setIsAccelerating(true);
+              setAcceleratedTime(logger.startTime || new Date());
+            } else {
+              setIsAccelerating(false);
+              setAcceleratedTime(undefined);
+            }
+          }}
+          disabled={!logger.isRunning}
+          style={{ 
+            padding: '8px 16px', 
+            borderRadius: 8, 
+            background: isAccelerating ? '#ffd700' : '#f0f0f0', 
+            border: '1px solid #ccc', 
+            fontSize: 14, 
+            cursor: logger.isRunning ? 'pointer' : 'not-allowed',
+            fontWeight: 'bold',
+            opacity: logger.isRunning ? 1 : 0.5
+          }}
+        >
+          {isAccelerating ? '⏩ Akselererer...' : '⏩ Akselerer tid'}
+        </button>
       </div>
 
-      {/* Estimated Finish */}
-      {estimatedFinish && (
-        <div style={{ 
-          marginBottom: 12, 
-          padding: '8px 12px', 
-          background: '#e8f4fd', 
-          borderRadius: 6, 
-          border: '1px solid #b3d9ff',
-          fontSize: 14,
-          color: '#0066cc',
-          fontWeight: 'bold'
-        }}>
-          🎯 Estimert ferdig: {estimatedFinish.toLocaleString("no-NO", {
+      {/* Estimated Finish and Current Time */}
+      <div style={{ 
+        marginBottom: 12, 
+        padding: '8px 12px', 
+        background: '#e8f4fd', 
+        borderRadius: 6, 
+        border: '1px solid #b3d9ff',
+        fontSize: 14,
+        color: '#0066cc',
+        fontWeight: 'bold',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <span>
+          {estimatedFinish && (
+            <>🎯 Estimert ferdig: {estimatedFinish.toLocaleString("no-NO", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit"
+            })}</>
+          )}
+        </span>
+        <span>
+          ⏰ Tid nå: {(acceleratedTime || new Date()).toLocaleString("no-NO", {
             weekday: "long",
             year: "numeric",
             month: "long",
@@ -591,8 +721,9 @@ function LoggerCard({
             hour: "2-digit",
             minute: "2-digit"
           })}
-        </div>
-      )}
+          {isAccelerating && " (AKSELERERT)"}
+        </span>
+      </div>
 
       {/* Plot */}
       <div
@@ -635,23 +766,34 @@ function LoggerCard({
                   }
 
                   // Beregn reell DG hvis vi har tempLogg
-                  if (point.tempLogg !== null && logger.startTime && point.runtime > 0) {
+                  if (point.tempLogg !== null && logger.startTime) {
                     const periodOffset = getOffsetForTime(point.timestamp, logger.dayOffset, logger.nightOffset);
                     const adjustedTemp = point.tempLogg + periodOffset;
                     const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-                    // Legg til DG for denne timen
-                    cumReellDG += dgHour / 24;
+                    // Legg til DG for denne timen (kun hvis runtime > 0)
+                    if (point.runtime > 0) {
+                      cumReellDG += dgHour / 24;
+                    }
                   }
 
                   return {
                     time: point.timestamp,
                     Estimat: point.runtime > 0 ? cumEstimatDG : null,
-                    Reell: point.runtime > 0 ? cumReellDG : null
+                    // Kun vis reell DG hvis vi faktisk har tempLogg data
+                    Reell: (point.runtime > 0 && point.tempLogg !== null) ? cumReellDG : null
                   };
                 });
 
                 console.log('Chart data:', chartData.length, 'points');
                 console.log('First chart data point:', chartData[0]);
+                
+                // Debug: Sjekk om vi har reell DG data
+                const reellDataPoints = chartData.filter(point => point.Reell !== null);
+                console.log(`📈 Reell DG datapunkter: ${reellDataPoints.length}`);
+                if (reellDataPoints.length > 0) {
+                  console.log('📊 Reell DG punkter:', reellDataPoints.slice(0, 3));
+                }
+                
                 return chartData;
               })()}
             >
