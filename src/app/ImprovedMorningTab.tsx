@@ -287,20 +287,27 @@ export default function ImprovedMorningTab() {
   // Load loggers from database on component mount
   useEffect(() => {
     async function loadLoggers() {
+      console.log('🔄 Component mounted, loading loggers from database...');
       setLoading(true);
       const dbLoggers = await loadLoggersFromDatabase();
       setLoggers(dbLoggers);
       setLoading(false);
+      console.log('✅ Component loaded, loggers state updated:', dbLoggers.length, 'loggers');
     }
     loadLoggers();
   }, []);
 
   // Save loggers to database whenever they change
   useEffect(() => {
-    if (!loading) {
-      loggers.forEach(async (logger) => {
-        await saveLoggerToDatabase(logger);
-      });
+    if (!loading && loggers.length > 0) {
+      const saveAllLoggers = async () => {
+        console.log('💾 Saving all loggers to database...');
+        for (const logger of loggers) {
+          await saveLoggerToDatabase(logger);
+        }
+        console.log('✅ All loggers saved to database');
+      };
+      saveAllLoggers();
     }
   }, [loggers, loading]);
 
