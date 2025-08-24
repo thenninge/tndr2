@@ -128,7 +128,7 @@ export default function DagensPosterTab() {
                 {(() => {
                   let arr = ELGPOSTER.map((p, idx) => ({ ...p, idx }));
                   if (sortBy === 'omrade') {
-                    arr = arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || a.name.localeCompare(b.name));
+                    arr = arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || (a.name || '').localeCompare(b.name || ''));
                     const grouped: Record<string, typeof arr> = {};
                     arr.forEach(p => {
                       if (!grouped[p.omrade]) grouped[p.omrade] = [];
@@ -156,7 +156,7 @@ export default function DagensPosterTab() {
                     case 'vest-ost':
                       arr = arr.sort((a, b) => a.lng - b.lng); break;
                     case 'alfabetisk':
-                      arr = arr.sort((a, b) => a.name.localeCompare(b.name)); break;
+                      arr = arr.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break;
                     case 'nummerert':
                       arr = arr.sort((a, b) => a.nr - b.nr); break;
                     case 'hytta':
@@ -218,7 +218,7 @@ export default function DagensPosterTab() {
               let arr = ELGPOSTER.map((p, idx) => ({ ...p, idx })).filter(p => !fordeling.some(f => f.postIdx === p.idx) || addPostIdx === String(p.idx));
               switch (addSortBy) {
                 case 'omrade':
-                  arr = arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || a.name.localeCompare(b.name)); break;
+                  arr = arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || (a.name || '').localeCompare(b.name || '')); break;
                 case 'nord-sor':
                   arr = arr.sort((a, b) => b.lat - a.lat); break;
                 case 'sor-nord':
@@ -228,7 +228,7 @@ export default function DagensPosterTab() {
                 case 'vest-ost':
                   arr = arr.sort((a, b) => a.lng - b.lng); break;
                 case 'alfabetisk':
-                  arr = arr.sort((a, b) => a.name.localeCompare(b.name)); break;
+                  arr = arr.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break;
                 case 'nummerert':
                   arr = arr.sort((a, b) => a.nr - b.nr); break;
                 case 'hytta':
