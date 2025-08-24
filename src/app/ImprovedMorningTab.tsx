@@ -299,15 +299,20 @@ export default function ImprovedMorningTab() {
 
   // Save loggers to database whenever they change
   useEffect(() => {
-    if (!loading && loggers.length > 0) {
-      const saveAllLoggers = async () => {
-        console.log('💾 Saving all loggers to database...');
-        for (const logger of loggers) {
-          await saveLoggerToDatabase(logger);
-        }
-        console.log('✅ All loggers saved to database');
-      };
-      saveAllLoggers();
+    console.log('🔄 useEffect triggered - loading:', loading, 'loggers.length:', loggers.length);
+    if (!loading) {
+      if (loggers.length > 0) {
+        const saveAllLoggers = async () => {
+          console.log('💾 Saving all loggers to database...');
+          for (const logger of loggers) {
+            await saveLoggerToDatabase(logger);
+          }
+          console.log('✅ All loggers saved to database');
+        };
+        saveAllLoggers();
+      } else {
+        console.log('📝 No loggers to save (empty array)');
+      }
     }
   }, [loggers, loading]);
 
