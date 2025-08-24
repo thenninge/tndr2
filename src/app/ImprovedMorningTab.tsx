@@ -65,6 +65,31 @@ async function testSupabaseConnection(): Promise<boolean> {
   }
 }
 
+// LocalStorage fallback functions
+function saveLoggersToLocalStorage(loggers: Logger[]): void {
+  try {
+    localStorage.setItem('morning_loggers', JSON.stringify(loggers));
+    console.log('💾 Saved loggers to localStorage:', loggers.length, 'loggers');
+  } catch (error) {
+    console.error('❌ Error saving to localStorage:', error);
+  }
+}
+
+function loadLoggersFromLocalStorage(): Logger[] {
+  try {
+    const stored = localStorage.getItem('morning_loggers');
+    if (stored) {
+      const loggers = JSON.parse(stored);
+      console.log('📱 Loaded loggers from localStorage:', loggers.length, 'loggers');
+      return loggers;
+    }
+    return [];
+  } catch (error) {
+    console.error('❌ Error loading from localStorage:', error);
+    return [];
+  }
+}
+
 async function loadLoggersFromDatabase(): Promise<Logger[]> {
   try {
     console.log('🔄 Loading loggers from database...');
@@ -315,15 +340,17 @@ export default function ImprovedMorningTab() {
       // Test connection first
       const connectionOk = await testSupabaseConnection();
       if (!connectionOk) {
-        console.log('⚠️ Skipping database operations due to connection failure');
-        setLoading(false);
-        return;
+        console.log('⚠️ Skipping database operations due to connection failure, falling back to localStorage');
+        const localStorageLoggers = loadLoggersFromLocalStorage();
+        setLoggers(localStorageLoggers);
+        saveLoggersToLocalStorage(localStorageLoggers); // Save to localStorage as fallback
+      } else {
+        const dbLoggers = await loadLoggersFromDatabase();
+        setLoggers(dbLoggers);
+        saveLoggersToLocalStorage(dbLoggers); // Save to localStorage as fallback
       }
-      
-      const dbLoggers = await loadLoggersFromDatabase();
-      setLoggers(dbLoggers);
       setLoading(false);
-      console.log('✅ Component loaded, loggers state updated:', dbLoggers.length, 'loggers');
+      console.log('✅ Component loaded, loggers state updated:', loggers.length, 'loggers');
     }
     loadLoggers();
   }, []);
@@ -341,6 +368,7 @@ export default function ImprovedMorningTab() {
           console.log('✅ All loggers saved to database');
         };
         saveAllLoggers();
+        saveLoggersToLocalStorage(loggers); // Also save to localStorage
       } else {
         console.log('📝 No loggers to save (empty array)');
       }
