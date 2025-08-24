@@ -870,9 +870,12 @@ function LoggerCard({
                 let cumReellDG = 0;
                 
                 const chartData = logger.dataTable.map(point => {
+                  // Konverter timestamp til Date hvis det er en streng
+                  const timestamp = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
+                  
                   // Beregn estimat DG hvis vi har tempEst
                   if (point.tempEst !== null && logger.startTime && point.runtime > 0) {
-                    const periodOffset = getOffsetForTime(point.timestamp, logger.dayOffset, logger.nightOffset);
+                    const periodOffset = getOffsetForTime(timestamp, logger.dayOffset, logger.nightOffset);
                     const adjustedTemp = point.tempEst + periodOffset;
                     const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
                     // Legg til DG for denne timen
@@ -881,7 +884,7 @@ function LoggerCard({
 
                   // Beregn reell DG hvis vi har tempLogg
                   if (point.tempLogg !== null && logger.startTime) {
-                    const periodOffset = getOffsetForTime(point.timestamp, logger.dayOffset, logger.nightOffset);
+                    const periodOffset = getOffsetForTime(timestamp, logger.dayOffset, logger.nightOffset);
                     const adjustedTemp = point.tempLogg + periodOffset;
                     const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
                     // Legg til DG for denne timen (kun hvis runtime > 0)
