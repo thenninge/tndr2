@@ -6,7 +6,7 @@ export default function ElgposterTab() {
 
   const arr = ELGPOSTER.map((p, idx) => ({ ...p, idx }));
   if (sortBy === 'omrade') {
-    arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || a.name.localeCompare(b.name));
+    arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || (a.name || '').localeCompare(b.name || ''));
   } else {
     switch (sortBy) {
       case 'nord-sor':
@@ -18,7 +18,7 @@ export default function ElgposterTab() {
       case 'vest-ost':
         arr.sort((a, b) => a.lng - b.lng); break;
       case 'alfabetisk':
-        arr.sort((a, b) => a.name.localeCompare(b.name)); break;
+        arr.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break;
       case 'nummerert':
         arr.sort((a, b) => a.nr - b.nr); break;
       case 'hytta':
@@ -64,8 +64,8 @@ export default function ElgposterTab() {
               <div style={{ fontWeight: 700, fontSize: 16, color: '#444', marginBottom: 4 }}>{omrade}</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, columns: 2, gap: '0 32px' }}>
                 {posts.map(p => (
-                  <li key={p.nr+p.name} style={{ marginBottom: 2, fontSize: 16, breakInside: 'avoid' }}>
-                    <span style={{ fontWeight: 400, marginRight: 8 }}>{p.name}</span>
+                  <li key={p.nr+(p.name || '')} style={{ marginBottom: 2, fontSize: 16, breakInside: 'avoid' }}>
+                    <span style={{ fontWeight: 400, marginRight: 8 }}>{p.name || ''}</span>
                     <span style={{ color: '#888', fontSize: 15 }}>({p.nr})</span>
                   </li>
                 ))}
@@ -75,8 +75,8 @@ export default function ElgposterTab() {
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, columns: 2, gap: '0 32px' }}>
             {arr.map(p => (
-              <li key={p.nr+p.name} style={{ marginBottom: 2, fontSize: 16, breakInside: 'avoid' }}>
-                <span style={{ fontWeight: 400, marginRight: 8 }}>{p.name}</span>
+              <li key={p.nr+(p.name || '')} style={{ marginBottom: 2, fontSize: 16, breakInside: 'avoid' }}>
+                <span style={{ fontWeight: 400, marginRight: 8 }}>{p.name || ''}</span>
                 <span style={{ color: '#888', fontSize: 15 }}>({p.nr})</span>
               </li>
             ))}
