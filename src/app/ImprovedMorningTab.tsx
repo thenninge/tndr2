@@ -47,7 +47,7 @@ interface Logger {
 async function testSupabaseConnection(): Promise<boolean> {
   try {
     console.log('🔍 Testing Supabase connection...');
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('morning_loggers')
       .select('count')
       .limit(1);
@@ -83,13 +83,13 @@ function loadLoggersFromLocalStorage(): Logger[] {
       console.log('📱 Loaded loggers from localStorage:', loggers.length, 'loggers');
       
       // Convert date strings back to Date objects
-      return loggers.map((logger: any) => ({
+      return loggers.map((logger: Record<string, unknown>) => ({
         ...logger,
-        lastFetched: logger.lastFetched ? new Date(logger.lastFetched) : undefined,
-        startTime: logger.startTime ? new Date(logger.startTime) : undefined,
-        dataTable: logger.dataTable?.map((point: any) => ({
+        lastFetched: logger.lastFetched ? new Date(logger.lastFetched as string) : undefined,
+        startTime: logger.startTime ? new Date(logger.startTime as string) : undefined,
+        dataTable: (logger.dataTable as Array<Record<string, unknown>>)?.map((point: Record<string, unknown>) => ({
           ...point,
-          timestamp: new Date(point.timestamp)
+          timestamp: new Date(point.timestamp as string)
         })) || []
       }));
     }
