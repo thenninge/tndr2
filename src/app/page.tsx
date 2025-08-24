@@ -31,6 +31,7 @@ import { WindArrow, weatherIcon, windDirectionText } from './utils/weatherUtils'
 // Fjern alle exporterte konstanter og typer fra denne filen. Flytt til src/app/constants.ts og importer dem her.
 import { DEFAULT_POSITION, HourlyForecast, ForecastDay, Post, TrekkData, Jeger, WeatherData } from './constants';
 import MorningTab from './MorningTab';
+import ImprovedMorningTab from './ImprovedMorningTab';
 
 // Enkel Tab-komponent
 function Tabs({ tabs, current, onChange }: { tabs: string[]; current: string; onChange: (tab: string) => void }) {
@@ -349,7 +350,7 @@ function TrekkDinPost({ posts, trekkData, setTrekkData }: { posts: Post[]; trekk
 
   // Sorter ELGPOSTER alfabetisk for visning
   const sortedIdx = ELGPOSTER
-    .map((p, i) => ({ name: p.name, idx: i }))
+    .map((p, i) => ({ name: p.name || '', idx: i }))
     .sort((a, b) => sortBy === 'alfabetisk' ? a.name.localeCompare(b.name) : a.idx - b.idx)
     .map(x => x.idx);
 
@@ -943,7 +944,7 @@ export default function Home() {
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sandbekken IT & Drift</h1>
       </header>
         <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
-          <Tabs tabs={["Vær", "Postvær", "Post-trekk", "Dagens poster", "Kart", "Mørning", "Elgposter", "Fall/Obs", "ElgAI"]} current={activeTab} onChange={setActiveTab} />
+          <Tabs tabs={["Vær", "Postvær", "Post-trekk", "Dagens poster", "Kart", "Mørning", "Mørning2", "Elgposter", "Fall/Obs", "ElgAI"]} current={activeTab} onChange={setActiveTab} />
       </div>
         {activeTab === "Vær" && (
           <WeatherTab
@@ -981,6 +982,9 @@ export default function Home() {
         )}
         {activeTab === "Mørning" && (
           <MorningTab loggers={loggers} setLoggers={setLoggers} />
+        )}
+        {activeTab === "Mørning2" && (
+          <ImprovedMorningTab loggers={loggers} setLoggers={setLoggers} />
         )}
         {activeTab === "Elgposter" && (
           <ElgposterTab />

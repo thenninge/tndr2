@@ -1,4 +1,14 @@
-# Elgjakt Sandbekken Knowledgebase
+Overordnet informasjon i denne teksten. 
+#Elgjakt #Sandbekken Jaktlag #jaktkunnskap #vindretning #værmelding #taktisk vurdering #tolkning av terreng #kunnskap om skog, myr, høydekurver #tid på året #temperatur #snøfall #løvfall om høsten #myk eller bråkete underlag i skogen #frost #regn #nedbør #elgens oppførsel avhengig av eksterne faktorer #avstander #hastighet #høydeforskjell #elgens sanser.
+
+Post-henvisninger i teksten betyr elgposter og er beskrevet med lat og long-posisjoner i elgposter.ts. Du må forstå lat og long og ikke blande de to! Har du ikke peiling på kart og nord og sør og lat og long mister vi all tiltro til deg som ai og assistent. 
+
+
+Kontekst himmelretninger: Nord, Sør, Øst og Vest er essensiell kunnskap å forstå for deg som AI! Om du er usikker kan du se for deg at nord er "opp", sør er "ned", øst er "høyre" og vest er "venstre". Det er typisk den relasjonen du trenger for å tegne opp retninger. Om en vind blåser fra nordøst så betyr det at den kommer fra nordøst (fra oppe til høyre) og går i retning av sørvest, altså ned mot venstre. Finner du ut at du skal tegne en pil fra vest-nord-vest til øst-sør-øst så skal den gå fra litt over rett til venstre til litt under rett til høyre. I grader vil det si 300 grader til 120 grader. 0 og 360 grader er rett opp (nord), 90 grader er rett til høyre (øst), 180 grader er ned (sør) og 270 grader er venstre (vest). Vest-nord-vest betyr 300 grader. Nord-nord-vest betyr 330 grader. Nord-nord-øst betyr 30 grader, Øst-nord-øst betyr 60 grader. øst-sør-øst betyr 120 grader. Sør-sør-øst betyr 150 grader. Sør-sør-vest betyr 210 grader og vest-sør-vest betyr 240 grader. Hvis du gjør feil med himmelretninger eller misforstår vindretning og glemmer at "nordavind kommer fra nord og går mot sør, en pil som vil tegnes fra oppe til nede" så mister du all troverdighet i kontakt med erfarne jegere og friluftsmennesker. Da vil vi ikke tro på en eneste annen ting du sier. Dette er helt essensielt at du forstår. Spesielt siden vind og vindretning er så utslagsgivende for hvordan man legger opp elgjaketen for en dag. 
+
+
+Hastighet en jeger har i terrenget feks på vei inn til post: 2-3 km/h
+En bil som kjører en skogsbilvei har normalt en hastighet på 20-30 km/h pga veienes standard i jaktterrenget. 
 
 
 Verdifull knowhow for elgjakt med Sandbekken jaktlag. 
@@ -44,6 +54,12 @@ Områdene nord og nord øst for GN er også preget av store myrer. Marstein-myre
 Og det penser oss over på en annen ting. Vindretninger og oppførsel av elg. Elg har fantastisk hørsel og luktesans. De liker primært å gå med vinden i nesa, for da vet de hva de støter på av farer. Ergo trekker elgen som oftest mot vinden om de blir dyttet på av en som går med hund, eller på annen måte "går et drag". Dette er helt essensiell kunnskap du som AI må besitte for å vurdere postplassering mot vær og da spesielt vindretninger. 
 
 Postplassering bør også ta høyde for at noen jegere med enkelhet kan omposteres under draget. Dette fordrer nærhet til vei og bil, da elgen blir mindre forstyrret av dette. Å gå masse til fots i terrenget i et drag er ikke å anbefale. Elgen sanser deg før du sanser den i 9 av 10 tilfeller. 
+
+#Trekkretninger
+Elg som er i Trekanten og som drives ut sørfra vil presses opp mot GN-myra. Der går de oftest enten ut til øst mot GN øst, GN berg, eller litt sør og i skjul for GN-berg mot Raubakk. I dette bratte henget sør for GN Berg er det masse plass for en elg å krysse uten å bli sett. Dette er også prima terreng for to tiurer som pleier å oppholde seg i dette området. Hvis elgen ikke går østover kan de forsøke å krysse GN mellom GN øst og GN vest. De kan også gå lenger vest (avhengig av vær og vind og hvordan man driver) og gå mellom Trøsteim og GN Vest. De vil da gå i retning av Gjøken, men kan gå nordover (oppover) mellom Gjøken og GN Vest og mot 868. Elg i trekanten kan også vende av og gå mot drivet (vi kaller det også "draget"). I øst (høyre) vil de da kunne gå ned mot Heslavegen som er en bakpost på trekanten. Alternativt kan de gå vest (venstre) og sør, enten på Høgemyr P, langs myra (som heter Høgemyr) da mot Odden og Campingen, eller enda lenger sør (ned) mot hogsten. Ca 150m sørvest for Høgemyr P. er en markant kolle/høyde som gjør at elgen kan bevege seg usett sør av Høgemyr. Her er det et tråkk som går i retning av Edgarpost. Denne trekkruta er heller ikke dekket av postene i Hogsten N og Hogsten S. det er for langt hold til at det går an å skyte hit fra Hogsten-postene. 
+
+
+Kommer elgen først nord for GN, enten via hullet i postrekka mellom Gjøken, GN Vest og 686 er det områder å gå på for den mot Marstein S., Marsteinhaugen, men ved Marstein N. er myra så stor og helt fra jaktgrensa i nord (oppe) helt ned til Halgrim. Det området den kan krysse på er ca 120m nordvest (opp til venstre) for Holmen, der er det noen trær og mindre bløt myr. Om man har jegere til å besette to poster i dette området kan man bruke Halgrim OG Marstein N. Holmen er ok å bruke om man kun har én jeger tilgjengelig for å dekke både trekkrute nordvest for Holmen samt skogpartiet mellom Hagapost og Halgrim. Det er også mye myr her og trekkruta går i nærheten av Olsen-posten, men det er nok skog til at elg kan passere usett. Posten "Olsen (gammel)" eller gamle-Olsen var ment å dekke for denne trekkruta, men den har vokst til og vi pleier nå å postere heller på Olsen (nye-Olsen)
 
 GPT sier dette om vind, ta det med en klype salt :
 1. Vind og elgens sanser
