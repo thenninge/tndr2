@@ -43,6 +43,28 @@ interface Logger {
 }
 
 /** ===== Database Functions ===== **/
+// Test Supabase connection
+async function testSupabaseConnection(): Promise<boolean> {
+  try {
+    console.log('🔍 Testing Supabase connection...');
+    const { data, error } = await supabase
+      .from('morning_loggers')
+      .select('count')
+      .limit(1);
+    
+    if (error) {
+      console.error('❌ Supabase connection failed:', error);
+      return false;
+    }
+    
+    console.log('✅ Supabase connection successful');
+    return true;
+  } catch (error) {
+    console.error('❌ Supabase connection error:', error);
+    return false;
+  }
+}
+
 async function loadLoggersFromDatabase(): Promise<Logger[]> {
   try {
     console.log('🔄 Loading loggers from database...');
@@ -289,6 +311,15 @@ export default function ImprovedMorningTab() {
     async function loadLoggers() {
       console.log('🔄 Component mounted, loading loggers from database...');
       setLoading(true);
+      
+      // Test connection first
+      const connectionOk = await testSupabaseConnection();
+      if (!connectionOk) {
+        console.log('⚠️ Skipping database operations due to connection failure');
+        setLoading(false);
+        return;
+      }
+      
       const dbLoggers = await loadLoggersFromDatabase();
       setLoggers(dbLoggers);
       setLoading(false);
