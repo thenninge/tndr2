@@ -125,7 +125,17 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
         dayOffset: dbLogger.day_offset as number,
         nightOffset: dbLogger.night_offset as number,
         baseTemp: dbLogger.base_temp as number,
-        dataTable: dbLogger.data_table ? JSON.parse(dbLogger.data_table as string) : [],
+        dataTable: dbLogger.data_table ? (() => {
+          const parsed = JSON.parse(dbLogger.data_table as string);
+          // Convert timestamp strings back to Date objects and ensure runtime is a number
+          return parsed.map((point: Record<string, unknown>) => ({
+            ...point,
+            timestamp: new Date(point.timestamp as string),
+            runtime: Number(point.runtime),
+            tempEst: point.tempEst !== null ? Number(point.tempEst) : null,
+            tempLogg: point.tempLogg !== null ? Number(point.tempLogg) : null
+          }));
+        })() : [],
         accumulatedDG: (dbLogger.accumulated_dg as number) || 0,
         lastFetched: dbLogger.last_fetched ? new Date(dbLogger.last_fetched as string) : undefined,
         isRunning: (dbLogger.is_running as boolean) || false,
@@ -242,20 +252,39 @@ async function fetchHistory(
   from: Date,
   to: Date
 ): Promise<Point[]> {
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&start_date=${from
-    .toISOString()
-    .slice(0, 10)}&end_date=${to
-    .toISOString()
-    .slice(0, 10)}&timezone=auto`;
+  try {
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&start_date=${from
+      .toISOString()
+      .slice(0, 10)}&end_date=${to
+      .toISOString()
+      .slice(0, 10)}&timezone=auto`;
 
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Kunne ikke hente historiske data");
-  const data = await res.json();
+    console.log(`🌍 Fetching historical data from Open-Meteo: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
+    
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error(`❌ Open-Meteo API error: ${res.status} ${res.statusText}`);
+      throw new Error(`Kunne ikke hente historiske data: ${res.status} ${res.statusText}`);
+    }
+    
+    const data = await res.json();
+    
+    if (!data.hourly || !data.hourly.time || !data.hourly.temperature_2m) {
+      console.error('❌ Invalid data structure from Open-Meteo:', data);
+      throw new Error("Ugyldig data-struktur fra Open-Meteo");
+    }
 
-  return data.hourly.time.map((t: string, i: number) => ({
-    time: new Date(t),
-    temp: data.hourly.temperature_2m[i],
-  }));
+    const points = data.hourly.time.map((t: string, i: number) => ({
+      time: new Date(t),
+      temp: data.hourly.temperature_2m[i],
+    }));
+    
+    console.log(`✅ Successfully fetched ${points.length} historical temperature points`);
+    return points;
+  } catch (error) {
+    console.error('❌ Error fetching historical data:', error);
+    throw error;
+  }
 }
 
 // Henter temperatur for en spesifikk tid (for akselerert tid)
@@ -308,9 +337,23 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   const from = logger.lastFetched;
   if (from >= currentTime) return logger; // ingenting nytt å hente
 
-  console.log('Fetching history from:', from, 'to:', currentTime);
-  const history = await fetchHistory(logger.lat, logger.lng, from, currentTime);
-  console.log('Fetched history points:', history.length);
+  // Begrens til maks 7 dager tilbake for å unngå API-problemer
+  const maxDaysBack = 7;
+  const maxFrom = new Date(currentTime.getTime() - maxDaysBack * 24 * 60 * 60 * 1000);
+  const actualFrom = from < maxFrom ? maxFrom : from;
+  
+  console.log('Fetching history from:', actualFrom, 'to:', currentTime);
+  console.log('Original from was:', from, 'but limited to:', actualFrom);
+  
+  let history: Point[];
+  try {
+    history = await fetchHistory(logger.lat, logger.lng, actualFrom, currentTime);
+    console.log('Fetched history points:', history.length);
+  } catch (error) {
+    console.error('❌ Failed to fetch historical data, continuing without update:', error);
+    // Return logger without updating lastFetched so we can try again later
+    return logger;
+  }
 
   // Oppdater dataTable med historiske temperaturer
   const updatedDataTable = [...logger.dataTable];
@@ -321,12 +364,16 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   });
 
   // Oppdater tempLogg for alle punkter som har historiske data
+  let updatedCount = 0;
   updatedDataTable.forEach(point => {
     const hourKey = floorToHour(point.timestamp).getTime();
     if (historyMap.has(hourKey)) {
       point.tempLogg = historyMap.get(hourKey)!;
+      updatedCount++;
     }
   });
+  
+  console.log(`🔄 Updated ${updatedCount} tempLogg values from history`);
 
   return {
     ...logger,
@@ -356,8 +403,24 @@ export default function ImprovedMorningTab() {
         saveLoggersToLocalStorage(localStorageLoggers); // Save to localStorage as fallback
       } else {
         const dbLoggers = await loadLoggersFromDatabase();
-        setLoggers(dbLoggers);
-        saveLoggersToLocalStorage(dbLoggers); // Save to localStorage as fallback
+        
+        // Oppdater lastFetched for kjørende logger som har gammel lastFetched
+        const updatedLoggers = dbLoggers.map(logger => {
+          if (logger.isRunning && logger.lastFetched) {
+            const hoursSinceLastFetch = (new Date().getTime() - logger.lastFetched.getTime()) / (1000 * 60 * 60);
+            if (hoursSinceLastFetch > 24) {
+              console.log(`🔄 Logger ${logger.name} was running but lastFetched is ${hoursSinceLastFetch.toFixed(1)} hours old, updating...`);
+              return {
+                ...logger,
+                lastFetched: new Date(new Date().getTime() - 60 * 60 * 1000) // 1 time tilbake
+              };
+            }
+          }
+          return logger;
+        });
+        
+        setLoggers(updatedLoggers);
+        saveLoggersToLocalStorage(updatedLoggers); // Save to localStorage as fallback
       }
       setLoading(false);
       console.log('✅ Component loaded, loggers state updated:', loggers.length, 'loggers');
@@ -526,17 +589,19 @@ function LoggerCard({
   const [acceleratedTime, setAcceleratedTime] = useState<Date | undefined>();
   const [isAccelerating, setIsAccelerating] = useState(false);
 
-  // Hent forecast og oppdater dataTable
+
+
+  // Opprett dataTable når loggeren starter (startTime settes)
   useEffect(() => {
-    async function runEstimate() {
+    if (!logger.startTime) return; // Kun hvis vi har startTime
+    
+    async function createDataTableOnStart() {
       setLoading(true);
       try {
         const forecast = await fetchForecast(logger.lat, logger.lng);
-        console.log('Forecast data:', forecast.length, 'points');
-        console.log('First forecast point:', forecast[0]);
+        console.log('Creating dataTable on start:', forecast.length, 'points');
+        console.log(`🎯 [createDataTableOnStart] Target: ${logger.target} DG, StartTime: ${logger.startTime}`);
         
-        // Opprett dataTable fra forecast
-        const startTime = logger.startTime || new Date();
         const dataTable: DataPoint[] = [];
         
         // Beregn estimert ferdig tid først
@@ -546,14 +611,18 @@ function LoggerCard({
         let hoursAfterTarget = 0;
         
         for (const point of forecast) {
-          const periodOffset = getOffsetForTime(point.time, logger.dayOffset, logger.nightOffset);
-          const adjustedTemp = point.temp + periodOffset;
-          const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-          cumDG += dgHour / 24;
+          // Start DG-akkumulering kun fra startTime og framover
+          if (point.time >= logger.startTime!) {
+            const periodOffset = getOffsetForTime(point.time, logger.dayOffset, logger.nightOffset);
+            const adjustedTemp = point.temp + periodOffset;
+            const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+            cumDG += dgHour / 24;
+          }
           
           if (!targetReached && cumDG >= logger.target) {
             targetReached = true;
             estimatedFinish = point.time;
+            console.log(`🎯 [createDataTableOnStart] Target ${logger.target} DG reached at ${point.time.toLocaleString()}, cumDG: ${cumDG.toFixed(2)}`);
           }
           
           // Stopp 12 timer etter target er nådd
@@ -565,7 +634,7 @@ function LoggerCard({
         
         // Opprett dataTable kun opp til estimert ferdig + 12 timer
         forecast.forEach(point => {
-          const runtime = Math.floor((point.time.getTime() - startTime.getTime()) / (1000 * 60 * 60));
+          const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
           
           // Stopp hvis vi har nådd 12 timer etter target
           if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
@@ -588,13 +657,14 @@ function LoggerCard({
         
         setEstimatedFinish(estimatedFinish);
       } catch (err) {
-        console.error("Feil ved henting av forecast:", err);
+        console.error("Feil ved opprettelse av dataTable ved start:", err);
       } finally {
         setLoading(false);
       }
     }
-    runEstimate();
-  }, [logger.lat, logger.lng, logger.baseTemp, logger.dayOffset, logger.nightOffset, logger.target, logger.startTime]);
+    
+    createDataTableOnStart();
+  }, [logger.startTime, logger.id]);
 
   // Oppdater reell logg hvis loggeren kjører
   useEffect(() => {
@@ -870,35 +940,47 @@ function LoggerCard({
                 let cumReellDG = 0;
                 
                 const chartData = logger.dataTable.map(point => {
-                  // Konverter timestamp til Date hvis det er en streng
-                  const timestamp = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
-                  
-                  // Beregn estimat DG hvis vi har tempEst
-                  if (point.tempEst !== null && logger.startTime && point.runtime > 0) {
-                    const periodOffset = getOffsetForTime(timestamp, logger.dayOffset, logger.nightOffset);
-                    const adjustedTemp = point.tempEst + periodOffset;
-                    const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-                    // Legg til DG for denne timen
-                    cumEstimatDG += dgHour / 24;
-                  }
-
-                  // Beregn reell DG hvis vi har tempLogg
-                  if (point.tempLogg !== null && logger.startTime) {
-                    const periodOffset = getOffsetForTime(timestamp, logger.dayOffset, logger.nightOffset);
-                    const adjustedTemp = point.tempLogg + periodOffset;
-                    const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-                    // Legg til DG for denne timen (kun hvis runtime > 0)
-                    if (point.runtime > 0) {
-                      cumReellDG += dgHour / 24;
+                  try {
+                    // Konverter timestamp til Date hvis det er en streng
+                    const timestamp = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
+                    
+                    // Sikre at runtime er et tall
+                    const runtime = Number(point.runtime) || 0;
+                    
+                    // Beregn estimat DG hvis vi har tempEst
+                    if (point.tempEst !== null && logger.startTime && runtime > 0) {
+                      const periodOffset = getOffsetForTime(timestamp, logger.dayOffset, logger.nightOffset);
+                      const adjustedTemp = point.tempEst + periodOffset;
+                      const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+                      // Legg til DG for denne timen
+                      cumEstimatDG += dgHour / 24;
                     }
-                  }
 
-                  return {
-                    time: point.timestamp,
-                    Estimat: point.runtime > 0 ? cumEstimatDG : null,
-                    // Kun vis reell DG hvis vi faktisk har tempLogg data
-                    Reell: (point.runtime > 0 && point.tempLogg !== null) ? cumReellDG : null
-                  };
+                    // Beregn reell DG hvis vi har tempLogg
+                    if (point.tempLogg !== null && logger.startTime) {
+                      const periodOffset = getOffsetForTime(timestamp, logger.dayOffset, logger.nightOffset);
+                      const adjustedTemp = point.tempLogg + periodOffset;
+                      const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+                      // Legg til DG for denne timen (kun hvis runtime > 0)
+                      if (runtime > 0) {
+                        cumReellDG += dgHour / 24;
+                      }
+                    }
+
+                    return {
+                      time: timestamp,
+                      Estimat: runtime > 0 ? cumEstimatDG : null,
+                      // Kun vis reell DG hvis vi faktisk har tempLogg data
+                      Reell: (runtime > 0 && point.tempLogg !== null) ? cumReellDG : null
+                    };
+                  } catch (error) {
+                    console.error('Error processing chart data point:', error, point);
+                    return {
+                      time: new Date(),
+                      Estimat: null,
+                      Reell: null
+                    };
+                  }
                 });
 
                 console.log('Chart data:', chartData.length, 'points');
@@ -910,6 +992,25 @@ function LoggerCard({
                 if (reellDataPoints.length > 0) {
                   console.log('📊 Reell DG punkter:', reellDataPoints.slice(0, 3));
                 }
+                
+                // Debug: Sjekk dataTable for tempLogg data
+                const tempLoggData = logger.dataTable.filter(point => point.tempLogg !== null);
+                console.log(`🌡️ DataTable tempLogg datapunkter: ${tempLoggData.length}`);
+                if (tempLoggData.length > 0) {
+                  console.log('🌡️ TempLogg punkter:', tempLoggData.slice(0, 3).map(p => ({
+                    timestamp: p.timestamp,
+                    tempLogg: p.tempLogg,
+                    runtime: p.runtime
+                  })));
+                }
+                
+                // Debug: Sjekk runtime verdier
+                const runtimeData = logger.dataTable.slice(0, 5).map(p => ({
+                  timestamp: p.timestamp,
+                  runtime: p.runtime,
+                  tempEst: p.tempEst
+                }));
+                console.log('🔍 Runtime debugging:', runtimeData);
                 
                 return chartData;
               })()}
