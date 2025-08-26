@@ -591,13 +591,21 @@ function LoggerCard({
 
 
 
-  // Opprett dataTable når loggeren starter (startTime settes)
+  // Opprett dataTable når loggeren starter (startTime settes) eller når dataTable mangler
   useEffect(() => {
     console.log(`🔍 [useEffect] Checking logger ${logger.name}: startTime=${logger.startTime}, dataTable.length=${logger.dataTable?.length || 0}`);
     if (!logger.startTime) {
       console.log(`❌ [useEffect] No startTime for logger ${logger.name}, skipping`);
       return; // Kun hvis vi har startTime
     }
+    
+    // Sjekk om dataTable mangler eller er tom
+    if (logger.dataTable && logger.dataTable.length > 0) {
+      console.log(`✅ [useEffect] dataTable already exists for logger ${logger.name} with ${logger.dataTable.length} points, skipping`);
+      return; // dataTable eksisterer allerede
+    }
+    
+    console.log(`🔄 [useEffect] Creating dataTable for logger ${logger.name} (startTime exists but dataTable is missing/empty)`);
     
     async function createDataTableOnStart() {
       setLoading(true);
@@ -668,7 +676,7 @@ function LoggerCard({
     }
     
     createDataTableOnStart();
-  }, [logger.startTime, logger.id]);
+  }, [logger.startTime, logger.id, logger.dataTable?.length]);
 
   // Oppdater reell logg hvis loggeren kjører
   useEffect(() => {
