@@ -593,7 +593,11 @@ function LoggerCard({
 
   // Opprett dataTable når loggeren starter (startTime settes)
   useEffect(() => {
-    if (!logger.startTime) return; // Kun hvis vi har startTime
+    console.log(`🔍 [useEffect] Checking logger ${logger.name}: startTime=${logger.startTime}, dataTable.length=${logger.dataTable?.length || 0}`);
+    if (!logger.startTime) {
+      console.log(`❌ [useEffect] No startTime for logger ${logger.name}, skipping`);
+      return; // Kun hvis vi har startTime
+    }
     
     async function createDataTableOnStart() {
       setLoading(true);
@@ -763,15 +767,23 @@ function LoggerCard({
       {/* Controls */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <button 
-          onClick={() => setLoggers(loggers => loggers.map(x => x.id === logger.id ? { 
-            ...x, 
-            isRunning: !x.isRunning,
-            startTime: !x.isRunning ? (() => {
+          onClick={() => {
+            const newIsRunning = !logger.isRunning;
+            const newStartTime = !logger.isRunning ? (() => {
               const startTime = new Date();
               startTime.setMinutes(0, 0, 0); // Start fra nåværende hele time (kl 13:00)
+              console.log(`🚀 [Start Button] Setting startTime for ${logger.name}: ${startTime.toLocaleString()}`);
               return startTime;
-            })() : x.startTime
-          } : x))} 
+            })() : logger.startTime;
+            
+            console.log(`🚀 [Start Button] ${logger.name}: isRunning=${newIsRunning}, startTime=${newStartTime?.toLocaleString() || 'null'}`);
+            
+            setLoggers(loggers => loggers.map(x => x.id === logger.id ? { 
+              ...x, 
+              isRunning: newIsRunning,
+              startTime: newStartTime
+            } : x));
+          }} 
           style={{ 
             padding: '8px 16px', 
             borderRadius: 8, 
@@ -925,6 +937,12 @@ function LoggerCard({
         ) : !logger.dataTable || logger.dataTable.length === 0 ? (
           <div style={{ color: "#888", fontSize: 16 }}>
             Ingen data tilgjengelig.
+            <br />
+            <small style={{ fontSize: 12, color: "#666" }}>
+              Debug: dataTable={logger.dataTable ? logger.dataTable.length : 'null'}, 
+              startTime={logger.startTime ? logger.startTime.toLocaleString() : 'null'},
+              isRunning={logger.isRunning.toString()}
+            </small>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
