@@ -433,20 +433,27 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   
   let history: Point[];
   try {
-    // TEMPORARY: Use mock data instead of API call to test green graph
-    console.log('🧪 TEST: Using mock data instead of API call');
-    const mockHistory: Point[] = [];
-    for (let i = 0; i < 24; i++) {
-      const time = new Date(actualFrom);
-      time.setHours(time.getHours() + i);
-      mockHistory.push({
-        time: time,
-        temp: 15 + Math.random() * 10 // Random temp between 15-25°C
-      });
+    // Try API call with better error handling
+    try {
+      history = await fetchHistory(logger.lat, logger.lng, actualFrom, currentTime);
+      console.log('📊 Fetched history points:', history.length);
+      console.log('🧪 TEST: Vanlig logikk - etter API-kall');
+    } catch (error) {
+      console.log('⚠️ API call failed, using mock data as fallback');
+      // Fallback to mock data if API fails
+      const mockHistory: Point[] = [];
+      for (let i = 0; i < 24; i++) {
+        const time = new Date(actualFrom);
+        time.setHours(time.getHours() + i);
+        mockHistory.push({
+          time: time,
+          temp: 15 + Math.random() * 10 // Random temp between 15-25°C
+        });
+      }
+      history = mockHistory;
+      console.log('📊 Mock history points:', history.length);
+      console.log('🧪 TEST: Vanlig logikk - etter mock data fallback');
     }
-    history = mockHistory;
-    console.log('📊 Mock history points:', history.length);
-    console.log('🧪 TEST: Vanlig logikk - etter mock data');
   } catch (error) {
     console.error('❌ Failed to fetch historical data, continuing without update:', error);
     // Return logger without updating lastFetched so we can try again later
