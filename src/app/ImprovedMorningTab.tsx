@@ -339,6 +339,7 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   const currentTime = new Date();
   
   console.log(`🔄 [refreshRealLog] Starting for logger ${logger.name}: startTime=${logger.startTime?.toLocaleString()}, lastFetched=${logger.lastFetched?.toLocaleString() || 'null'}`);
+  console.log(`🧪 [refreshRealLog] TEST: Ny versjon av refreshRealLog kjører!`);
   
   // Hvis loggeren ikke har startTime, ikke hent data
   if (!logger.startTime) {
