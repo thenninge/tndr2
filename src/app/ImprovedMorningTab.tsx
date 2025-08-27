@@ -426,11 +426,13 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   
   console.log('🌍 Fetching history from:', actualFrom, 'to:', currentTime);
   console.log('📅 Original from was:', from, 'but limited to:', actualFrom);
+  console.log('🧪 TEST: Vanlig logikk - før API-kall');
   
   let history: Point[];
   try {
     history = await fetchHistory(logger.lat, logger.lng, actualFrom, currentTime);
     console.log('📊 Fetched history points:', history.length);
+    console.log('🧪 TEST: Vanlig logikk - etter API-kall');
   } catch (error) {
     console.error('❌ Failed to fetch historical data, continuing without update:', error);
     // Return logger without updating lastFetched so we can try again later
