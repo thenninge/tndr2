@@ -793,7 +793,7 @@ function LoggerCard({
       const interval = setInterval(updateRealLog, 60000); // Oppdater hvert minutt
       return () => clearInterval(interval);
     }
-  }, [logger.isRunning, logger.id, logger.startTime]);
+  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length]);
 
   // Akselerert tid simulator
   useEffect(() => {
