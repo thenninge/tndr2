@@ -364,17 +364,19 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
     
     console.log('🌍 Fetching history from startTime:', actualFrom, 'to:', currentTime);
     
-    let history: Point[];
-    try {
-      history = await fetchHistory(logger.lat, logger.lng, actualFrom, currentTime);
-      console.log('📊 Fetched history points from startTime:', history.length);
-    } catch (error) {
-      console.error('❌ Failed to fetch historical data from startTime, continuing without update:', error);
-      return {
-        ...logger,
-        lastFetched: currentTime,
-      };
+    // DISABLED API CALLS: Use mock data to avoid 429 errors
+    console.log('🚫 API calls disabled (first time), using mock data');
+    const mockHistory: Point[] = [];
+    for (let i = 0; i < 24; i++) {
+      const time = new Date(actualFrom);
+      time.setHours(time.getHours() + i);
+      mockHistory.push({
+        time: time,
+        temp: 15 + Math.random() * 10 // Random temp between 15-25°C
+      });
     }
+    const history = mockHistory;
+    console.log('📊 Mock history points from startTime:', history.length);
 
     // Oppdater dataTable med historiske temperaturer
     const updatedDataTable = [...logger.dataTable];
@@ -433,27 +435,20 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   
   let history: Point[];
   try {
-    // Try API call with better error handling
-    try {
-      history = await fetchHistory(logger.lat, logger.lng, actualFrom, currentTime);
-      console.log('📊 Fetched history points:', history.length);
-      console.log('🧪 TEST: Vanlig logikk - etter API-kall');
-    } catch (error) {
-      console.log('⚠️ API call failed, using mock data as fallback');
-      // Fallback to mock data if API fails
-      const mockHistory: Point[] = [];
-      for (let i = 0; i < 24; i++) {
-        const time = new Date(actualFrom);
-        time.setHours(time.getHours() + i);
-        mockHistory.push({
-          time: time,
-          temp: 15 + Math.random() * 10 // Random temp between 15-25°C
-        });
-      }
-      history = mockHistory;
-      console.log('📊 Mock history points:', history.length);
-      console.log('🧪 TEST: Vanlig logikk - etter mock data fallback');
+    // DISABLED API CALLS: Use mock data to avoid 429 errors
+    console.log('🚫 API calls disabled, using mock data');
+    const mockHistory: Point[] = [];
+    for (let i = 0; i < 24; i++) {
+      const time = new Date(actualFrom);
+      time.setHours(time.getHours() + i);
+      mockHistory.push({
+        time: time,
+        temp: 15 + Math.random() * 10 // Random temp between 15-25°C
+      });
     }
+    history = mockHistory;
+    console.log('📊 Mock history points:', history.length);
+    console.log('🧪 TEST: Vanlig logikk - etter mock data');
   } catch (error) {
     console.error('❌ Failed to fetch historical data, continuing without update:', error);
     // Return logger without updating lastFetched so we can try again later
