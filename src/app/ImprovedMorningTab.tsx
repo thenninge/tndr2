@@ -326,7 +326,7 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   
   // Hvis dette er første gang (ingen lastFetched), hent data fra startTime til nå
   if (!logger.lastFetched) {
-    console.log('First time logging - fetching historical data from startTime to now');
+    console.log('🟡 First time logging - fetching historical data from startTime to now');
     const from = logger.startTime;
     const to = currentTime;
     
@@ -335,12 +335,12 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
     const maxFrom = new Date(currentTime.getTime() - maxDaysBack * 24 * 60 * 60 * 1000);
     const actualFrom = from < maxFrom ? maxFrom : from;
     
-    console.log('Fetching history from startTime:', actualFrom, 'to:', currentTime);
+    console.log('🌍 Fetching history from startTime:', actualFrom, 'to:', currentTime);
     
     let history: Point[];
     try {
       history = await fetchHistory(logger.lat, logger.lng, actualFrom, currentTime);
-      console.log('Fetched history points from startTime:', history.length);
+      console.log('📊 Fetched history points from startTime:', history.length);
     } catch (error) {
       console.error('❌ Failed to fetch historical data from startTime, continuing without update:', error);
       return {
@@ -385,13 +385,13 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   const maxFrom = new Date(currentTime.getTime() - maxDaysBack * 24 * 60 * 60 * 1000);
   const actualFrom = from < maxFrom ? maxFrom : from;
   
-  console.log('Fetching history from:', actualFrom, 'to:', currentTime);
-  console.log('Original from was:', from, 'but limited to:', actualFrom);
+  console.log('🌍 Fetching history from:', actualFrom, 'to:', currentTime);
+  console.log('📅 Original from was:', from, 'but limited to:', actualFrom);
   
   let history: Point[];
   try {
     history = await fetchHistory(logger.lat, logger.lng, actualFrom, currentTime);
-    console.log('Fetched history points:', history.length);
+    console.log('📊 Fetched history points:', history.length);
   } catch (error) {
     console.error('❌ Failed to fetch historical data, continuing without update:', error);
     // Return logger without updating lastFetched so we can try again later
