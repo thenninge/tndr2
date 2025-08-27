@@ -200,6 +200,50 @@ async function deleteLoggerFromDatabase(loggerId: string): Promise<boolean> {
   }
 }
 
+// Global settings functions for last_real_update
+async function getLastRealUpdate(): Promise<Date | null> {
+  try {
+    const { data, error } = await supabase
+      .from('global_settings')
+      .select('last_real_update')
+      .eq('id', 'default')
+      .single();
+
+    if (error) {
+      console.error('❌ Error getting last_real_update:', error);
+      return null;
+    }
+
+    return data?.last_real_update ? new Date(data.last_real_update) : null;
+  } catch (error) {
+    console.error('❌ Error getting last_real_update:', error);
+    return null;
+  }
+}
+
+async function updateLastRealUpdate(): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('global_settings')
+      .upsert({
+        id: 'default',
+        last_real_update: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      console.error('❌ Error updating last_real_update:', error);
+      return false;
+    }
+
+    console.log('✅ Updated last_real_update to:', new Date().toISOString());
+    return true;
+  } catch (error) {
+    console.error('❌ Error updating last_real_update:', error);
+    return false;
+  }
+}
+
 /** ===== Helpers ===== **/
 function floorToHour(d: Date) {
   const x = new Date(d);
@@ -248,6 +292,50 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
 // Cache for API calls to avoid rate limiting
 const apiCache = new Map<string, { data: Point[], timestamp: number }>();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hour cache (increased from 1 hour)
+
+// New function to fetch real temperature data based on last_real_update
+async function fetchRealTemperatureData(lat: number, lon: number): Promise<Point[]> {
+  try {
+    console.log('🔄 Fetching real temperature data...');
+    
+    // Get last_real_update from database
+    const lastRealUpdate = await getLastRealUpdate();
+    const now = new Date();
+    
+    if (!lastRealUpdate) {
+      console.log('⚠️ No last_real_update found, using current time');
+      // If no last_real_update, fetch last 24 hours
+      const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      return await fetchHistory(lat, lon, from, now);
+    }
+    
+    console.log(`📅 Last real update: ${lastRealUpdate.toISOString()}`);
+    console.log(`📅 Current time: ${now.toISOString()}`);
+    
+    // Calculate time difference
+    const timeDiff = now.getTime() - lastRealUpdate.getTime();
+    const hoursDiff = timeDiff / (1000 * 60 * 60);
+    
+    console.log(`⏰ Time difference: ${hoursDiff.toFixed(1)} hours`);
+    
+    // If more than 72 hours, limit to 72 hours back
+    let from = lastRealUpdate;
+    if (hoursDiff > 72) {
+      from = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+      console.log(`⚠️ Limiting to 72 hours back: ${from.toISOString()}`);
+    }
+    
+    // Fetch temperature data from last_real_update to now
+    const temperatureData = await fetchHistory(lat, lon, from, now);
+    
+    console.log(`✅ Fetched ${temperatureData.length} temperature points from ${from.toISOString()} to ${now.toISOString()}`);
+    
+    return temperatureData;
+  } catch (error) {
+    console.error('❌ Error fetching real temperature data:', error);
+    throw error;
+  }
+}
 
 // Henter historiske data fra from → to med caching
 async function fetchHistory(
@@ -337,150 +425,7 @@ async function fetchTempForTime(
 /** ===== Estimator ===== **/
 
 
-// Oppdaterer real logg fra sistFetched → nå
-async function refreshRealLog(logger: Logger): Promise<Logger> {
-  const currentTime = new Date();
-  
-  console.log(`🔄 [refreshRealLog] Starting for logger ${logger.name}: startTime=${logger.startTime?.toLocaleString()}, lastFetched=${logger.lastFetched?.toLocaleString() || 'null'}`);
-  console.log(`🧪 [refreshRealLog] TEST: Ny versjon av refreshRealLog kjører!`);
-  
-  // Hvis loggeren ikke har startTime, ikke hent data
-  if (!logger.startTime) {
-    console.log(`❌ [refreshRealLog] No startTime for logger ${logger.name}, returning early`);
-    return logger;
-  }
-  
-  // Hvis dette er første gang (ingen lastFetched), hent data fra startTime til nå
-  if (!logger.lastFetched) {
-    console.log('🟡 First time logging - fetching historical data from startTime to now');
-    console.log('🧪 TEST: lastFetched er null, går inn i første gang logikk');
-    const from = logger.startTime;
-    const to = currentTime;
-    
-    // Begrens til maks 7 dager tilbake for å unngå API-problemer
-    const maxDaysBack = 7;
-    const maxFrom = new Date(currentTime.getTime() - maxDaysBack * 24 * 60 * 60 * 1000);
-    const actualFrom = from < maxFrom ? maxFrom : from;
-    
-    console.log('🌍 Fetching history from startTime:', actualFrom, 'to:', currentTime);
-    
-    // DISABLED API CALLS: Use mock data to avoid 429 errors
-    console.log('🚫 API calls disabled (first time), using mock data');
-    const mockHistory: Point[] = [];
-    for (let i = 0; i < 24; i++) {
-      const time = new Date(actualFrom);
-      time.setHours(time.getHours() + i);
-      mockHistory.push({
-        time: time,
-        temp: 15 + Math.random() * 10 // Random temp between 15-25°C
-      });
-    }
-    const history = mockHistory;
-    console.log('📊 Mock history points from startTime:', history.length);
-
-    // Oppdater dataTable med historiske temperaturer
-    const updatedDataTable = [...logger.dataTable];
-    const historyMap = new Map<number, number>();
-    history.forEach(h => {
-      const hourKey = floorToHour(h.time).getTime();
-      historyMap.set(hourKey, h.temp);
-    });
-    
-    console.log(`🗺️ HistoryMap entries (first 5):`);
-    let count = 0;
-    historyMap.forEach((temp, hourKey) => {
-      if (count < 5) {
-        console.log(`  ${new Date(hourKey).toLocaleString()}: ${temp}°C`);
-        count++;
-      }
-    });
-
-    // Oppdater tempLogg for alle punkter som har historiske data
-    let updatedCount = 0;
-    console.log(`🔍 dataTable has ${updatedDataTable.length} points, historyMap has ${historyMap.size} entries`);
-    
-    updatedDataTable.forEach((point, index) => {
-      const hourKey = floorToHour(point.timestamp).getTime();
-      if (historyMap.has(hourKey)) {
-        point.tempLogg = historyMap.get(hourKey)!;
-        updatedCount++;
-        console.log(`✅ Updated point ${index}: ${point.timestamp.toLocaleString()} with temp ${point.tempLogg}°C`);
-      } else {
-        console.log(`❌ No match for point ${index}: ${point.timestamp.toLocaleString()}, hourKey: ${hourKey}`);
-      }
-    });
-    
-    console.log(`🔄 Updated ${updatedCount} tempLogg values from startTime history`);
-
-    return {
-      ...logger,
-      dataTable: updatedDataTable,
-      lastFetched: currentTime,
-    };
-  }
-
-  // Start fra siste fetched tid
-  const from = logger.lastFetched;
-  console.log('🧪 TEST: lastFetched eksisterer, går inn i vanlig logikk');
-  if (from >= currentTime) return logger; // ingenting nytt å hente
-
-  // Begrens til maks 7 dager tilbake for å unngå API-problemer
-  const maxDaysBack = 7;
-  const maxFrom = new Date(currentTime.getTime() - maxDaysBack * 24 * 60 * 60 * 1000);
-  const actualFrom = from < maxFrom ? maxFrom : from;
-  
-  console.log('🌍 Fetching history from:', actualFrom, 'to:', currentTime);
-  console.log('📅 Original from was:', from, 'but limited to:', actualFrom);
-  console.log('🧪 TEST: Vanlig logikk - før API-kall');
-  
-  let history: Point[];
-  try {
-    // DISABLED API CALLS: Use mock data to avoid 429 errors
-    console.log('🚫 API calls disabled, using mock data');
-    const mockHistory: Point[] = [];
-    for (let i = 0; i < 24; i++) {
-      const time = new Date(actualFrom);
-      time.setHours(time.getHours() + i);
-      mockHistory.push({
-        time: time,
-        temp: 15 + Math.random() * 10 // Random temp between 15-25°C
-      });
-    }
-    history = mockHistory;
-    console.log('📊 Mock history points:', history.length);
-    console.log('🧪 TEST: Vanlig logikk - etter mock data');
-  } catch (error) {
-    console.error('❌ Failed to fetch historical data, continuing without update:', error);
-    // Return logger without updating lastFetched so we can try again later
-    return logger;
-  }
-
-  // Oppdater dataTable med historiske temperaturer
-  const updatedDataTable = [...logger.dataTable];
-  const historyMap = new Map<number, number>();
-  history.forEach(h => {
-    const hourKey = floorToHour(h.time).getTime();
-    historyMap.set(hourKey, h.temp);
-  });
-
-  // Oppdater tempLogg for alle punkter som har historiske data
-  let updatedCount = 0;
-  updatedDataTable.forEach(point => {
-    const hourKey = floorToHour(point.timestamp).getTime();
-    if (historyMap.has(hourKey)) {
-      point.tempLogg = historyMap.get(hourKey)!;
-      updatedCount++;
-    }
-  });
-  
-  console.log(`🔄 Updated ${updatedCount} tempLogg values from history`);
-
-  return {
-    ...logger,
-    dataTable: updatedDataTable,
-    lastFetched: currentTime,
-  };
-}
+// These functions will be defined inside the component to access state
 
 export default function ImprovedMorningTab() {
   const [loggers, setLoggers] = useState<Logger[]>([]);
@@ -543,6 +488,116 @@ export default function ImprovedMorningTab() {
 
   // Save loggers to database whenever they change (but not during polling)
   const [isPolling, setIsPolling] = useState(false);
+  
+  // New function to update real temperature data for all running loggers
+  const updateRealTemperatureData = async (): Promise<boolean> => {
+    try {
+      console.log('🔄 Updating real temperature data for all running loggers...');
+      
+      // Get all running loggers
+      const runningLoggers = loggers.filter(logger => logger.isRunning);
+      
+      if (runningLoggers.length === 0) {
+        console.log('ℹ️ No running loggers found, skipping update');
+        return true;
+      }
+      
+      console.log(`📊 Found ${runningLoggers.length} running loggers`);
+      
+      // Use the first logger's location (all loggers share same lat/lng)
+      const firstLogger = runningLoggers[0];
+      const lat = firstLogger.lat;
+      const lon = firstLogger.lng;
+      
+      console.log(`📍 Using location: ${lat}, ${lon} for all loggers`);
+      
+      // Fetch real temperature data based on last_real_update
+      const temperatureData = await fetchRealTemperatureData(lat, lon);
+      
+      if (temperatureData.length === 0) {
+        console.log('⚠️ No temperature data received, skipping update');
+        return false;
+      }
+      
+      console.log(`🌡️ Received ${temperatureData.length} temperature points`);
+      
+      // Create temperature map for efficient lookup
+      const tempMap = new Map<number, number>();
+      temperatureData.forEach(point => {
+        const hourKey = floorToHour(point.time).getTime();
+        tempMap.set(hourKey, point.temp);
+      });
+      
+      // Update all running loggers with the same temperature data
+      const updatedLoggers = loggers.map(logger => {
+        if (!logger.isRunning) {
+          return logger; // Skip non-running loggers
+        }
+        
+        console.log(`🔄 Updating logger: ${logger.name}`);
+        
+        // Update dataTable with real temperature data
+        const updatedDataTable = logger.dataTable.map(point => {
+          const hourKey = floorToHour(point.timestamp).getTime();
+          if (tempMap.has(hourKey)) {
+            return {
+              ...point,
+              tempLogg: tempMap.get(hourKey)!
+            };
+          }
+          return point;
+        });
+        
+        return {
+          ...logger,
+          dataTable: updatedDataTable,
+          lastFetched: new Date() // Update lastFetched for this logger
+        };
+      });
+      
+      // Update state
+      setLoggers(updatedLoggers);
+      
+      // Save all updated loggers to database
+      for (const logger of updatedLoggers) {
+        if (logger.isRunning) {
+          await saveLoggerToDatabase(logger);
+        }
+      }
+      
+      // Update last_real_update in database AFTER successful update
+      const updateSuccess = await updateLastRealUpdate();
+      
+      if (updateSuccess) {
+        console.log('✅ Successfully updated real temperature data for all running loggers');
+        return true;
+      } else {
+        console.error('❌ Failed to update last_real_update in database');
+        return false;
+      }
+      
+    } catch (error) {
+      console.error('❌ Error updating real temperature data:', error);
+      return false;
+    }
+  };
+
+  // Legacy function for backward compatibility (now calls the new function)
+  const refreshRealLog = async (logger: Logger): Promise<Logger> => {
+    console.log(`🔄 [refreshRealLog] Called for logger ${logger.name} - redirecting to new updateRealTemperatureData function`);
+    
+    // Call the new function to update all running loggers
+    const success = await updateRealTemperatureData();
+    
+    if (success) {
+      // Return the updated logger from the current state
+      const updatedLogger = loggers.find(l => l.id === logger.id);
+      return updatedLogger || logger;
+    } else {
+      // Return original logger if update failed
+      return logger;
+    }
+  };
   
   useEffect(() => {
     console.log('🔄 useEffect triggered - loading:', loading, 'loggers.length:', loggers.length, 'isPolling:', isPolling);
