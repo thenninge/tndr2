@@ -350,6 +350,7 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
   // Hvis dette er første gang (ingen lastFetched), hent data fra startTime til nå
   if (!logger.lastFetched) {
     console.log('🟡 First time logging - fetching historical data from startTime to now');
+    console.log('🧪 TEST: lastFetched er null, går inn i første gang logikk');
     const from = logger.startTime;
     const to = currentTime;
     
@@ -415,6 +416,7 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
 
   // Start fra siste fetched tid
   const from = logger.lastFetched;
+  console.log('🧪 TEST: lastFetched eksisterer, går inn i vanlig logikk');
   if (from >= currentTime) return logger; // ingenting nytt å hente
 
   // Begrens til maks 7 dager tilbake for å unngå API-problemer
