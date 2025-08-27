@@ -823,6 +823,7 @@ function LoggerCard({
         setLastRefreshTime(now);
         const updated = await refreshRealLog(logger);
         console.log(`🔄 [updateRealLog] refreshRealLog completed for ${logger.name}, updated dataTable length: ${updated.dataTable.length}`);
+        console.log(`🧪 [updateRealLog] TEST: refreshRealLog returnerte ${updated.dataTable.length} punkter`);
         setLoggers(loggers => loggers.map(l => l.id === logger.id ? updated : l));
       } catch (err) {
         console.error("Feil ved oppdatering av reell logg:", err);
