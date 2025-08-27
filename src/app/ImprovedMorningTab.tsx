@@ -485,22 +485,30 @@ export default function ImprovedMorningTab() {
         saveLoggersToLocalStorage(updatedLoggers); // Save to localStorage as fallback
       }
       setLoading(false);
-      console.log('✅ Component loaded, loggers state updated:', loggers.length, 'loggers');
+      console.log('✅ Component loaded, loggers state updated');
+    }
+    
+    async function pollLoggers() {
+      setIsPolling(true);
+      await loadLoggers();
+      setIsPolling(false);
     }
     
     // Load immediately
     loadLoggers();
     
     // Set up periodic polling every 30 seconds to sync deletions/updates across devices
-    const interval = setInterval(loadLoggers, 30000);
+    const interval = setInterval(pollLoggers, 30000);
     
     return () => clearInterval(interval);
   }, []);
 
-  // Save loggers to database whenever they change
+  // Save loggers to database whenever they change (but not during polling)
+  const [isPolling, setIsPolling] = useState(false);
+  
   useEffect(() => {
-    console.log('🔄 useEffect triggered - loading:', loading, 'loggers.length:', loggers.length);
-    if (!loading) {
+    console.log('🔄 useEffect triggered - loading:', loading, 'loggers.length:', loggers.length, 'isPolling:', isPolling);
+    if (!loading && !isPolling) {
       if (loggers.length > 0) {
         const saveAllLoggers = async () => {
           console.log('💾 Saving all loggers to database...');
@@ -515,7 +523,7 @@ export default function ImprovedMorningTab() {
         console.log('📝 No loggers to save (empty array)');
       }
     }
-  }, [loggers, loading]);
+  }, [loggers, loading, isPolling]);
 
   return (
     <section>
