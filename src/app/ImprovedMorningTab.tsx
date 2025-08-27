@@ -450,10 +450,10 @@ export default function ImprovedMorningTab() {
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Load loggers from database on component mount
+  // Load loggers from database on component mount and periodically
   useEffect(() => {
     async function loadLoggers() {
-      console.log('🔄 Component mounted, loading loggers from database...');
+      console.log('🔄 Loading loggers from database...');
       setLoading(true);
       
       // Test connection first
@@ -487,7 +487,14 @@ export default function ImprovedMorningTab() {
       setLoading(false);
       console.log('✅ Component loaded, loggers state updated:', loggers.length, 'loggers');
     }
+    
+    // Load immediately
     loadLoggers();
+    
+    // Set up periodic polling every 30 seconds to sync deletions/updates across devices
+    const interval = setInterval(loadLoggers, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Save loggers to database whenever they change
