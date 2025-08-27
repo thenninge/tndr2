@@ -321,14 +321,57 @@ async function fetchTempForTime(
 async function refreshRealLog(logger: Logger): Promise<Logger> {
   const currentTime = new Date();
   
-  // Hvis loggeren ikke har startet ennå, ikke hent data
-  if (!logger.isRunning) return logger;
+  // Hvis loggeren ikke har startTime, ikke hent data
+  if (!logger.startTime) return logger;
   
-  // Hvis dette er første gang (ingen lastFetched), ikke hent historiske data
+  // Hvis dette er første gang (ingen lastFetched), hent data fra startTime til nå
   if (!logger.lastFetched) {
-    console.log('First time logging - no historical data needed');
+    console.log('First time logging - fetching historical data from startTime to now');
+    const from = logger.startTime;
+    const to = currentTime;
+    
+    // Begrens til maks 7 dager tilbake for å unngå API-problemer
+    const maxDaysBack = 7;
+    const maxFrom = new Date(currentTime.getTime() - maxDaysBack * 24 * 60 * 60 * 1000);
+    const actualFrom = from < maxFrom ? maxFrom : from;
+    
+    console.log('Fetching history from startTime:', actualFrom, 'to:', currentTime);
+    
+    let history: Point[];
+    try {
+      history = await fetchHistory(logger.lat, logger.lng, actualFrom, currentTime);
+      console.log('Fetched history points from startTime:', history.length);
+    } catch (error) {
+      console.error('❌ Failed to fetch historical data from startTime, continuing without update:', error);
+      return {
+        ...logger,
+        lastFetched: currentTime,
+      };
+    }
+
+    // Oppdater dataTable med historiske temperaturer
+    const updatedDataTable = [...logger.dataTable];
+    const historyMap = new Map<number, number>();
+    history.forEach(h => {
+      const hourKey = floorToHour(h.time).getTime();
+      historyMap.set(hourKey, h.temp);
+    });
+
+    // Oppdater tempLogg for alle punkter som har historiske data
+    let updatedCount = 0;
+    updatedDataTable.forEach(point => {
+      const hourKey = floorToHour(point.timestamp).getTime();
+      if (historyMap.has(hourKey)) {
+        point.tempLogg = historyMap.get(hourKey)!;
+        updatedCount++;
+      }
+    });
+    
+    console.log(`🔄 Updated ${updatedCount} tempLogg values from startTime history`);
+
     return {
       ...logger,
+      dataTable: updatedDataTable,
       lastFetched: currentTime,
     };
   }
