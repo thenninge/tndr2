@@ -247,7 +247,7 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
 
 // Cache for API calls to avoid rate limiting
 const apiCache = new Map<string, { data: Point[], timestamp: number }>();
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour cache
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hour cache (increased from 1 hour)
 
 // Henter historiske data fra from → to med caching
 async function fetchHistory(
@@ -262,6 +262,9 @@ async function fetchHistory(
     
     // Check cache first
     const cached = apiCache.get(cacheKey);
+    console.log(`🔍 Checking cache for key: ${cacheKey}`);
+    console.log(`🔍 Cache hit: ${cached ? 'YES' : 'NO'}, age: ${cached ? Math.round((now - cached.timestamp) / 1000 / 60) : 'N/A'} minutes`);
+    
     if (cached && (now - cached.timestamp) < CACHE_DURATION) {
       console.log(`📦 Using cached data for: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
       return cached.data;
