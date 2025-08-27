@@ -245,7 +245,11 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
   return raw.filter((p) => p.time >= nowHour);
 }
 
-// Henter historiske data fra from → to
+// Cache for API calls to avoid rate limiting
+const apiCache = new Map<string, { data: Point[], timestamp: number }>();
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour cache
+
+// Henter historiske data fra from → to med caching
 async function fetchHistory(
   lat: number,
   lon: number,
@@ -253,6 +257,16 @@ async function fetchHistory(
   to: Date
 ): Promise<Point[]> {
   try {
+    const cacheKey = `${lat},${lon},${from.toISOString().slice(0, 10)},${to.toISOString().slice(0, 10)}`;
+    const now = Date.now();
+    
+    // Check cache first
+    const cached = apiCache.get(cacheKey);
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      console.log(`📦 Using cached data for: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
+      return cached.data;
+    }
+    
     const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&start_date=${from
       .toISOString()
       .slice(0, 10)}&end_date=${to
@@ -278,6 +292,9 @@ async function fetchHistory(
       time: new Date(t),
       temp: data.hourly.temperature_2m[i],
     }));
+    
+    // Cache the result
+    apiCache.set(cacheKey, { data: points, timestamp: now });
     
     console.log(`✅ Successfully fetched ${points.length} historical temperature points`);
     return points;
@@ -497,8 +514,8 @@ export default function ImprovedMorningTab() {
     // Load immediately
     loadLoggers();
     
-    // Set up periodic polling every 30 seconds to sync deletions/updates across devices
-    const interval = setInterval(pollLoggers, 30000);
+    // Set up periodic polling every 2 minutes to sync deletions/updates across devices (reduced frequency to avoid rate limiting)
+    const interval = setInterval(pollLoggers, 120000);
     
     return () => clearInterval(interval);
   }, []);
@@ -783,6 +800,10 @@ function LoggerCard({
     setEstimatedFinish(estimatedFinish);
   }, [logger.dataTable, logger.startTime, logger.target, logger.dayOffset, logger.nightOffset, logger.baseTemp]);
 
+  // Rate limiting for refreshRealLog to avoid too many API calls
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  const REFRESH_COOLDOWN = 5 * 60 * 1000; // 5 minutes between refreshes
+
   // Oppdater reell logg hvis loggeren kjører eller har startTime (eksisterende logger)
   useEffect(() => {
     if (!logger.startTime) return; // Kun hvis vi har startTime
@@ -790,8 +811,15 @@ function LoggerCard({
     console.log(`🔄 [useEffect] refreshRealLog triggered for logger ${logger.name}: startTime=${logger.startTime?.toLocaleString()}, isRunning=${logger.isRunning}, lastFetched=${logger.lastFetched?.toLocaleString() || 'null'}`);
 
     async function updateRealLog() {
+      const now = Date.now();
+      if (now - lastRefreshTime < REFRESH_COOLDOWN) {
+        console.log(`⏳ [updateRealLog] Skipping refresh for ${logger.name} - cooldown active (${Math.round((REFRESH_COOLDOWN - (now - lastRefreshTime)) / 1000)}s remaining)`);
+        return;
+      }
+      
       try {
         console.log(`🔄 [updateRealLog] Calling refreshRealLog for ${logger.name}`);
+        setLastRefreshTime(now);
         const updated = await refreshRealLog(logger);
         console.log(`🔄 [updateRealLog] refreshRealLog completed for ${logger.name}, updated dataTable length: ${updated.dataTable.length}`);
         setLoggers(loggers => loggers.map(l => l.id === logger.id ? updated : l));
@@ -803,12 +831,12 @@ function LoggerCard({
     // Kjør umiddelbart for eksisterende logger
     updateRealLog();
     
-    // Sett opp interval kun hvis loggeren kjører
+    // Sett opp interval kun hvis loggeren kjører (med lengre interval)
     if (logger.isRunning) {
-      const interval = setInterval(updateRealLog, 60000); // Oppdater hvert minutt
+      const interval = setInterval(updateRealLog, 300000); // Oppdater hvert 5. minutt i stedet for hvert minutt
       return () => clearInterval(interval);
     }
-  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length]);
+  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime]);
 
   // Akselerert tid simulator
   useEffect(() => {
