@@ -678,9 +678,37 @@ function LoggerCard({
     createDataTableOnStart();
   }, [logger.startTime, logger.id, logger.dataTable?.length]);
 
-  // Oppdater reell logg hvis loggeren kjører
+  // Beregn estimatedFinish når dataTable endres (for eksisterende logger)
   useEffect(() => {
-    if (!logger.isRunning) return;
+    if (!logger.dataTable || logger.dataTable.length === 0 || !logger.startTime) {
+      return;
+    }
+    
+    // Beregn estimatedFinish fra eksisterende dataTable
+    let cumDG = 0;
+    let estimatedFinish: Date | undefined;
+    
+    for (const point of logger.dataTable) {
+      if (point.tempEst !== null && point.runtime > 0) {
+        const periodOffset = getOffsetForTime(point.timestamp, logger.dayOffset, logger.nightOffset);
+        const adjustedTemp = point.tempEst + periodOffset;
+        const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+        cumDG += dgHour / 24;
+        
+        if (cumDG >= logger.target && !estimatedFinish) {
+          estimatedFinish = point.timestamp;
+          console.log(`🎯 [useEffect] Calculated estimatedFinish from dataTable: ${estimatedFinish.toLocaleString()}, cumDG: ${cumDG.toFixed(2)}`);
+          break;
+        }
+      }
+    }
+    
+    setEstimatedFinish(estimatedFinish);
+  }, [logger.dataTable, logger.startTime, logger.target, logger.dayOffset, logger.nightOffset, logger.baseTemp]);
+
+  // Oppdater reell logg hvis loggeren kjører eller har startTime (eksisterende logger)
+  useEffect(() => {
+    if (!logger.startTime) return; // Kun hvis vi har startTime
 
     async function updateRealLog() {
       try {
@@ -691,10 +719,15 @@ function LoggerCard({
       }
     }
 
+    // Kjør umiddelbart for eksisterende logger
     updateRealLog();
-    const interval = setInterval(updateRealLog, 60000); // Oppdater hvert minutt
-    return () => clearInterval(interval);
-  }, [logger.isRunning, logger.id]);
+    
+    // Sett opp interval kun hvis loggeren kjører
+    if (logger.isRunning) {
+      const interval = setInterval(updateRealLog, 60000); // Oppdater hvert minutt
+      return () => clearInterval(interval);
+    }
+  }, [logger.isRunning, logger.id, logger.startTime]);
 
   // Akselerert tid simulator
   useEffect(() => {
@@ -703,7 +736,7 @@ function LoggerCard({
     async function accelerateTime() {
       try {
         // Øk tiden med 1 time
-        const currentTime = acceleratedTime || logger.startTime;
+        const currentTime = acceleratedTime || new Date(); // Start fra nåværende tid, ikke startTime
         if (!currentTime) return;
         
         const newTime = new Date(currentTime);
@@ -754,7 +787,7 @@ function LoggerCard({
 
     const interval = setInterval(accelerateTime, 2000); // Hvert 2. sekund
     return () => clearInterval(interval);
-  }, [isAccelerating, logger.isRunning, logger.startTime, logger.lat, logger.lng, acceleratedTime]);
+  }, [isAccelerating, logger.isRunning, logger.startTime, logger.lat, logger.lng, acceleratedTime, logger.dataTable]);
 
   return (
     <div
