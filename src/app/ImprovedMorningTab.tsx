@@ -291,7 +291,9 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
 
 // Cache for API calls to avoid rate limiting
 const apiCache = new Map<string, { data: Point[], timestamp: number }>();
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hour cache (increased from 1 hour)
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hour cache
+const API_RATE_LIMIT = 1000; // 1 second between API calls
+let lastApiCall = 0;
 
 // New function to fetch real temperature data based on last_real_update
 async function fetchRealTemperatureData(lat: number, lon: number): Promise<Point[]> {
@@ -337,7 +339,7 @@ async function fetchRealTemperatureData(lat: number, lon: number): Promise<Point
   }
 }
 
-// Henter historiske data fra from → to med caching
+// Henter historiske data fra from → to med caching og rate limiting
 async function fetchHistory(
   lat: number,
   lon: number,
@@ -357,6 +359,15 @@ async function fetchHistory(
       console.log(`📦 Using cached data for: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
       return cached.data;
     }
+    
+    // Rate limiting: wait if we called API too recently
+    const timeSinceLastCall = now - lastApiCall;
+    if (timeSinceLastCall < API_RATE_LIMIT) {
+      const waitTime = API_RATE_LIMIT - timeSinceLastCall;
+      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before API call`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    lastApiCall = Date.now();
     
     const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&start_date=${from
       .toISOString()
