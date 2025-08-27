@@ -321,8 +321,13 @@ async function fetchTempForTime(
 async function refreshRealLog(logger: Logger): Promise<Logger> {
   const currentTime = new Date();
   
+  console.log(`🔄 [refreshRealLog] Starting for logger ${logger.name}: startTime=${logger.startTime?.toLocaleString()}, lastFetched=${logger.lastFetched?.toLocaleString() || 'null'}`);
+  
   // Hvis loggeren ikke har startTime, ikke hent data
-  if (!logger.startTime) return logger;
+  if (!logger.startTime) {
+    console.log(`❌ [refreshRealLog] No startTime for logger ${logger.name}, returning early`);
+    return logger;
+  }
   
   // Hvis dette er første gang (ingen lastFetched), hent data fra startTime til nå
   if (!logger.lastFetched) {
@@ -767,9 +772,13 @@ function LoggerCard({
   useEffect(() => {
     if (!logger.startTime) return; // Kun hvis vi har startTime
 
+    console.log(`🔄 [useEffect] refreshRealLog triggered for logger ${logger.name}: startTime=${logger.startTime?.toLocaleString()}, isRunning=${logger.isRunning}, lastFetched=${logger.lastFetched?.toLocaleString() || 'null'}`);
+
     async function updateRealLog() {
       try {
+        console.log(`🔄 [updateRealLog] Calling refreshRealLog for ${logger.name}`);
         const updated = await refreshRealLog(logger);
+        console.log(`🔄 [updateRealLog] refreshRealLog completed for ${logger.name}, updated dataTable length: ${updated.dataTable.length}`);
         setLoggers(loggers => loggers.map(l => l.id === logger.id ? updated : l));
       } catch (err) {
         console.error("Feil ved oppdatering av reell logg:", err);
