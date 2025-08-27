@@ -43,16 +43,21 @@ function DgLogger({ logger, onChange, onDelete }: { logger: Logger; onChange: (l
           if (isNaN(nextDay.getTime())) break; // unngå uendelig loop
           dates.push(nextDay.toISOString().slice(0, 10));
         }
-        // --- Hent alle temperaturer parallelt ---
-        const fetches = dates.map(date => {
-          const today = new Date().toISOString().slice(0, 10);
-          const isPast = new Date(date) < new Date(today);
-          const url = isPast
-            ? `https://archive-api.open-meteo.com/v1/archive?latitude=${logger.lat}&longitude=${logger.lng}&start_date=${date}&end_date=${date}&hourly=temperature_2m`
-            : `https://api.open-meteo.com/v1/forecast?latitude=${logger.lat}&longitude=${logger.lng}&hourly=temperature_2m&timezone=auto&start_date=${date}&end_date=${date}`;
-          return fetch(url).then(r => r.json()).catch(() => null);
+        // --- DISABLED API CALLS: Use mock data to avoid 429 errors ---
+        console.log('🚫 API calls disabled in DgLogger.tsx, using mock data');
+        const results = dates.map(date => {
+          // Return mock data instead of API call
+          return Promise.resolve({
+            hourly: {
+              time: Array.from({ length: 24 }, (_, i) => {
+                const time = new Date(date);
+                time.setHours(i);
+                return time.toISOString();
+              }),
+              temperature_2m: Array.from({ length: 24 }, () => 15 + Math.random() * 10) // Random temp 15-25°C
+            }
+          });
         });
-        const results = await Promise.all(fetches);
         // --- Pakk ut temperaturene ---
         const temps: { time: string; temp: number }[] = [];
         results.forEach(data => {
