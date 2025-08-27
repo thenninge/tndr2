@@ -803,7 +803,7 @@ function LoggerCard({
 
   // Rate limiting for refreshRealLog to avoid too many API calls
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  const REFRESH_COOLDOWN = 5 * 60 * 1000; // 5 minutes between refreshes
+  const REFRESH_COOLDOWN = 2 * 60 * 1000; // 2 minutes between refreshes (reduced from 5 minutes)
 
   // Oppdater reell logg hvis loggeren kjører eller har startTime (eksisterende logger)
   useEffect(() => {
@@ -813,7 +813,8 @@ function LoggerCard({
 
     async function updateRealLog() {
       const now = Date.now();
-      if (now - lastRefreshTime < REFRESH_COOLDOWN) {
+      // Allow first run (when lastRefreshTime is 0) or if cooldown has passed
+      if (lastRefreshTime > 0 && (now - lastRefreshTime < REFRESH_COOLDOWN)) {
         console.log(`⏳ [updateRealLog] Skipping refresh for ${logger.name} - cooldown active (${Math.round((REFRESH_COOLDOWN - (now - lastRefreshTime)) / 1000)}s remaining)`);
         return;
       }
