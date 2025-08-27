@@ -356,14 +356,28 @@ async function refreshRealLog(logger: Logger): Promise<Logger> {
       const hourKey = floorToHour(h.time).getTime();
       historyMap.set(hourKey, h.temp);
     });
+    
+    console.log(`🗺️ HistoryMap entries (first 5):`);
+    let count = 0;
+    historyMap.forEach((temp, hourKey) => {
+      if (count < 5) {
+        console.log(`  ${new Date(hourKey).toLocaleString()}: ${temp}°C`);
+        count++;
+      }
+    });
 
     // Oppdater tempLogg for alle punkter som har historiske data
     let updatedCount = 0;
-    updatedDataTable.forEach(point => {
+    console.log(`🔍 dataTable has ${updatedDataTable.length} points, historyMap has ${historyMap.size} entries`);
+    
+    updatedDataTable.forEach((point, index) => {
       const hourKey = floorToHour(point.timestamp).getTime();
       if (historyMap.has(hourKey)) {
         point.tempLogg = historyMap.get(hourKey)!;
         updatedCount++;
+        console.log(`✅ Updated point ${index}: ${point.timestamp.toLocaleString()} with temp ${point.tempLogg}°C`);
+      } else {
+        console.log(`❌ No match for point ${index}: ${point.timestamp.toLocaleString()}, hourKey: ${hourKey}`);
       }
     });
     
