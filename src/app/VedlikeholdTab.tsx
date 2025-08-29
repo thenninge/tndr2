@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { ELGPOSTER } from './elgposter';
+import { supabase } from '../utils/supabaseClient';
 
 interface MaintenanceTask {
   id: string;
@@ -33,25 +34,91 @@ export default function VedlikeholdTab() {
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Load tasks from localStorage on mount
+  // Load tasks from database on mount
   useEffect(() => {
-    const savedTasks = localStorage.getItem('maintenanceTasks');
-    if (savedTasks) {
-      const parsedTasks = JSON.parse(savedTasks).map((task: Record<string, unknown>) => ({
-        ...task,
-        createdAt: new Date(task.createdAt),
-        completedAt: task.completedAt ? new Date(task.completedAt) : undefined
-      }));
-      setTasks(parsedTasks);
-    }
+    loadTasksFromDatabase();
   }, []);
 
-  // Save tasks to localStorage whenever tasks change
-  useEffect(() => {
-    localStorage.setItem('maintenanceTasks', JSON.stringify(tasks));
-  }, [tasks]);
+  // Load tasks from database
+  const loadTasksFromDatabase = async () => {
+    try {
+      console.log('🔄 Loading maintenance tasks from database...');
+      const { data, error } = await supabase
+        .from('maintenance_tasks')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const addTask = () => {
+      if (error) {
+        console.error('❌ Error loading tasks from database:', error);
+        return;
+      }
+
+      if (data) {
+        const parsedTasks = data.map((task: Record<string, unknown>) => ({
+          ...task,
+          createdAt: new Date(task.created_at as string),
+          completedAt: task.completed_at ? new Date(task.completed_at as string) : undefined
+        }));
+        setTasks(parsedTasks);
+        console.log('✅ Loaded', parsedTasks.length, 'tasks from database');
+      }
+    } catch (error) {
+      console.error('❌ Error loading tasks:', error);
+    }
+  };
+
+  // Save task to database
+  const saveTaskToDatabase = async (task: MaintenanceTask) => {
+    try {
+      const { error } = await supabase
+        .from('maintenance_tasks')
+        .upsert({
+          id: task.id,
+          post_id: task.postId,
+          description: task.description,
+          tags: task.tags,
+          priority: task.priority,
+          status: task.status,
+          assigned_to: task.assignedTo,
+          created_at: task.createdAt.toISOString(),
+          completed_at: task.completedAt?.toISOString()
+        });
+
+      if (error) {
+        console.error('❌ Error saving task to database:', error);
+        return false;
+      }
+
+      console.log('✅ Task saved to database:', task.id);
+      return true;
+    } catch (error) {
+      console.error('❌ Error saving task:', error);
+      return false;
+    }
+  };
+
+  // Delete task from database
+  const deleteTaskFromDatabase = async (taskId: string) => {
+    try {
+      const { error } = await supabase
+        .from('maintenance_tasks')
+        .delete()
+        .eq('id', taskId);
+
+      if (error) {
+        console.error('❌ Error deleting task from database:', error);
+        return false;
+      }
+
+      console.log('✅ Task deleted from database:', taskId);
+      return true;
+    } catch (error) {
+      console.error('❌ Error deleting task:', error);
+      return false;
+    }
+  };
+
+  const addTask = async () => {
     if (!selectedPost || !newTaskDescription.trim()) return;
 
     const newTask: MaintenanceTask = {
@@ -64,27 +131,50 @@ export default function VedlikeholdTab() {
       createdAt: new Date()
     };
 
-    setTasks(prev => [...prev, newTask]);
-    setNewTaskDescription('');
-    setNewTaskTags('');
-    setNewTaskPriority('medium');
+    // Save to database first
+    const success = await saveTaskToDatabase(newTask);
+    if (success) {
+      setTasks(prev => [newTask, ...prev]); // Add to beginning of list
+      setNewTaskDescription('');
+      setNewTaskTags('');
+      setNewTaskPriority('medium');
+      console.log('✅ Task added successfully');
+    } else {
+      console.error('❌ Failed to add task');
+      alert('Kunne ikke lagre oppgaven. Prøv igjen.');
+    }
   };
 
-  const updateTaskStatus = (taskId: string, status: MaintenanceTask['status']) => {
-    setTasks(prev => prev.map(task => 
-      task.id === taskId 
-        ? { 
-            ...task, 
-            status, 
-            completedAt: status === 'completed' ? new Date() : undefined 
-          }
-        : task
-    ));
+  const updateTaskStatus = async (taskId: string, status: MaintenanceTask['status']) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updatedTask = {
+      ...task,
+      status,
+      completedAt: status === 'completed' ? new Date() : undefined
+    };
+
+    const success = await saveTaskToDatabase(updatedTask);
+    if (success) {
+      setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+      console.log('✅ Task status updated successfully');
+    } else {
+      console.error('❌ Failed to update task status');
+      alert('Kunne ikke oppdatere status. Prøv igjen.');
+    }
   };
 
-  const deleteTask = (taskId: string) => {
+  const deleteTask = async (taskId: string) => {
     if (window.confirm('Er du sikker på at du vil slette denne oppgaven?')) {
-      setTasks(prev => prev.filter(task => task.id !== taskId));
+      const success = await deleteTaskFromDatabase(taskId);
+      if (success) {
+        setTasks(prev => prev.filter(task => task.id !== taskId));
+        console.log('✅ Task deleted successfully');
+      } else {
+        console.error('❌ Failed to delete task');
+        alert('Kunne ikke slette oppgaven. Prøv igjen.');
+      }
     }
   };
 
@@ -148,9 +238,26 @@ export default function VedlikeholdTab() {
 
   return (
     <div style={{ padding: '20px 0' }}>
-      <h2 style={{ marginBottom: '24px', fontSize: '24px', fontWeight: '600' }}>
-        Vedlikehold - Elgposter
-      </h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h2 style={{ fontSize: '24px', fontWeight: '600', margin: 0 }}>
+          Vedlikehold - Elgposter
+        </h2>
+        <button
+          onClick={loadTasksFromDatabase}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#0ea5e9',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500'
+          }}
+        >
+          🔄 Oppdater
+        </button>
+      </div>
 
       {/* Filters */}
       <div style={{ 

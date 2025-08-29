@@ -18,6 +18,20 @@ CREATE TABLE IF NOT EXISTS morning_loggers (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create maintenance_tasks table for storing vedlikeholdsoppgaver
+CREATE TABLE IF NOT EXISTS maintenance_tasks (
+  id TEXT PRIMARY KEY,
+  post_id INTEGER NOT NULL,
+  description TEXT NOT NULL,
+  tags TEXT[] DEFAULT '{}',
+  priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in-progress', 'completed')),
+  assigned_to TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create global settings table for tracking last real update
 CREATE TABLE IF NOT EXISTS global_settings (
   id TEXT PRIMARY KEY DEFAULT 'default',
@@ -31,16 +45,24 @@ INSERT INTO global_settings (id, last_real_update)
 VALUES ('default', NOW()) 
 ON CONFLICT (id) DO NOTHING;
 
--- Create index for better query performance
+-- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_morning_loggers_created_at ON morning_loggers(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_morning_loggers_is_running ON morning_loggers(is_running);
+CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_post_id ON maintenance_tasks(post_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_status ON maintenance_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_priority ON maintenance_tasks(priority);
+CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_created_at ON maintenance_tasks(created_at DESC);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE morning_loggers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE maintenance_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE global_settings ENABLE ROW LEVEL SECURITY;
 
--- Create policy to allow all operations (for now - you can restrict this later)
+-- Create policies to allow all operations (for now - you can restrict this later)
 CREATE POLICY "Allow all operations on morning_loggers" ON morning_loggers
+  FOR ALL USING (true);
+
+CREATE POLICY "Allow all operations on maintenance_tasks" ON maintenance_tasks
   FOR ALL USING (true);
 
 CREATE POLICY "Allow all operations on global_settings" ON global_settings
@@ -55,9 +77,14 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Create trigger to automatically update updated_at
+-- Create triggers to automatically update updated_at
 CREATE TRIGGER update_morning_loggers_updated_at 
   BEFORE UPDATE ON morning_loggers 
+  FOR EACH ROW 
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_maintenance_tasks_updated_at 
+  BEFORE UPDATE ON maintenance_tasks 
   FOR EACH ROW 
   EXECUTE FUNCTION update_updated_at_column();
 
