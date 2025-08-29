@@ -26,6 +26,7 @@ import DagensPosterTab from './DagensPosterTab';
 import KartTab from './KartTab';
 import ElgposterTab from './ElgposterTab';
 import JaktAI from './JaktAI';
+import VedlikeholdTab from './VedlikeholdTab';
 import { WindArrow, weatherIcon, windDirectionText } from './utils/weatherUtils';
 
 // Fjern alle exporterte konstanter og typer fra denne filen. Flytt til src/app/constants.ts og importer dem her.
@@ -952,7 +953,7 @@ export default function Home() {
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Sandbekken IT & Drift</h1>
       </header>
         <div style={{ position: 'sticky', top: 56, zIndex: 99, background: '#fafcff', marginBottom: 24 }}>
-          <Tabs tabs={["Vær", "Postvær", "Post-trekk", "Dagens poster", "Kart", "Mørning", "Mørning2", "Elgposter", "Fall/Obs", "ElgAI"]} current={activeTab} onChange={setActiveTab} />
+          <Tabs tabs={["Vær", "Postvær", "Post-trekk", "Dagens poster", "Kart", "Mørning", "Mørning2", "Elgposter", "Fall/Obs", "ElgAI", "Vedlikehold"]} current={activeTab} onChange={setActiveTab} />
       </div>
         {activeTab === "Vær" && (
           <WeatherTab
@@ -999,6 +1000,7 @@ export default function Home() {
         )}
         {activeTab === "Fall/Obs" && <FallObsTab jegere={ELGJEGERE} fallObs={fallObs} setFallObs={setFallObs} loading={loadingFallObs} />}
         {activeTab === "ElgAI" && <JaktAI />}
+        {activeTab === "Vedlikehold" && <VedlikeholdTab />}
     </div>
     </>
   );
