@@ -37,7 +37,7 @@ export default function VedlikeholdTab() {
   useEffect(() => {
     const savedTasks = localStorage.getItem('maintenanceTasks');
     if (savedTasks) {
-      const parsedTasks = JSON.parse(savedTasks).map((task: any) => ({
+      const parsedTasks = JSON.parse(savedTasks).map((task: Record<string, unknown>) => ({
         ...task,
         createdAt: new Date(task.createdAt),
         completedAt: task.completedAt ? new Date(task.completedAt) : undefined
@@ -88,9 +88,7 @@ export default function VedlikeholdTab() {
     }
   };
 
-  const getTasksForPost = (postId: number) => {
-    return tasks.filter(task => task.postId === postId);
-  };
+
 
   const getFilteredTasks = () => {
     let filtered = tasks;
@@ -253,7 +251,7 @@ export default function VedlikeholdTab() {
             <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Prioritet:</label>
             <select 
               value={newTaskPriority} 
-              onChange={(e) => setNewTaskPriority(e.target.value as any)}
+              onChange={(e) => setNewTaskPriority(e.target.value as 'low' | 'medium' | 'high' | 'urgent')}
               style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
             >
               <option value="low">Lav</option>

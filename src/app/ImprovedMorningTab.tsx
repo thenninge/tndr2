@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   LineChart,
   Line,
@@ -501,7 +501,7 @@ export default function ImprovedMorningTab() {
   const [isPolling, setIsPolling] = useState(false);
   
   // New function to update real temperature data for all running loggers
-  const updateRealTemperatureData = async (): Promise<boolean> => {
+  const updateRealTemperatureData = useCallback(async (): Promise<boolean> => {
     try {
       console.log('🔄 Updating real temperature data for all running loggers...');
       
@@ -591,24 +591,24 @@ export default function ImprovedMorningTab() {
       console.error('❌ Error updating real temperature data:', error);
       return false;
     }
-  };
+  }, [loggers, setLoggers]);
 
   // Legacy function for backward compatibility (now calls the new function)
-  const refreshRealLog = async (logger: Logger): Promise<Logger> => {
-    console.log(`🔄 [refreshRealLog] Called for logger ${logger.name} - redirecting to new updateRealTemperatureData function`);
+  // const refreshRealLog = async (logger: Logger): Promise<Logger> => {
+  //   console.log(`🔄 [refreshRealLog] Called for logger ${logger.name} - redirecting to new updateRealTemperatureData function`);
     
-    // Call the new function to update all running loggers
-    const success = await updateRealTemperatureData();
+  //   // Call the new function to update all running loggers
+  //   const success = await updateRealTemperatureData();
     
-    if (success) {
-      // Return the updated logger from the current state
-      const updatedLogger = loggers.find(l => l.id === logger.id);
-      return updatedLogger || logger;
-    } else {
-      // Return original logger if update failed
-      return logger;
-    }
-  };
+  //   if (success) {
+  //     // Return the updated logger from the current state
+  //     const updatedLogger = loggers.find(l => l.id === logger.id);
+  //     return updatedLogger || logger;
+  //   } else {
+  //     // Return original logger if update failed
+  //     return logger;
+  //   }
+  // };
   
   useEffect(() => {
     console.log('🔄 useEffect triggered - loading:', loading, 'loggers.length:', loggers.length, 'isPolling:', isPolling);
@@ -906,12 +906,14 @@ function LoggerCard({
       }
       
       try {
-        console.log(`🔄 [updateRealLog] Calling refreshRealLog for ${logger.name}`);
+        console.log(`🔄 [updateRealLog] Calling updateRealTemperatureData for ${logger.name}`);
         setLastRefreshTime(now);
-        const updated = await refreshRealLog(logger);
-        console.log(`🔄 [updateRealLog] refreshRealLog completed for ${logger.name}, updated dataTable length: ${updated.dataTable.length}`);
-        console.log(`🧪 [updateRealLog] TEST: refreshRealLog returnerte ${updated.dataTable.length} punkter`);
-        setLoggers(loggers => loggers.map(l => l.id === logger.id ? updated : l));
+        const success = await updateRealTemperatureData();
+        if (success) {
+          console.log(`🔄 [updateRealLog] updateRealTemperatureData completed successfully for ${logger.name}`);
+        } else {
+          console.log(`❌ [updateRealLog] updateRealTemperatureData failed for ${logger.name}`);
+        }
       } catch (err) {
         console.error("Feil ved oppdatering av reell logg:", err);
       }
@@ -925,7 +927,7 @@ function LoggerCard({
       const interval = setInterval(updateRealLog, 300000); // Oppdater hvert 5. minutt i stedet for hvert minutt
       return () => clearInterval(interval);
     }
-  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime]);
+  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime, updateRealTemperatureData]);
 
   // Akselerert tid simulator
   useEffect(() => {
