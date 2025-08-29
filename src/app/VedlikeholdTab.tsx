@@ -143,7 +143,7 @@ export default function VedlikeholdTab() {
         // Fallback to localStorage
         try {
           const existingTasks = JSON.parse(localStorage.getItem('maintenanceTasks') || '[]');
-          const updatedTasks = existingTasks.filter((t: any) => t.id !== task.id);
+          const updatedTasks = existingTasks.filter((t: Record<string, unknown>) => t.id !== task.id);
           updatedTasks.push(task);
           localStorage.setItem('maintenanceTasks', JSON.stringify(updatedTasks));
           console.log('✅ Task saved to localStorage as fallback:', task.id);
@@ -163,7 +163,7 @@ export default function VedlikeholdTab() {
       // Fallback to localStorage
       try {
         const existingTasks = JSON.parse(localStorage.getItem('maintenanceTasks') || '[]');
-        const updatedTasks = existingTasks.filter((t: any) => t.id !== task.id);
+                  const updatedTasks = existingTasks.filter((t: Record<string, unknown>) => t.id !== task.id);
         updatedTasks.push(task);
         localStorage.setItem('maintenanceTasks', JSON.stringify(updatedTasks));
         console.log('✅ Task saved to localStorage as fallback:', task.id);
