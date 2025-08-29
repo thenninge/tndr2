@@ -39,7 +39,7 @@ export default function VedlikeholdTab() {
     loadTasksFromDatabase();
   }, []);
 
-  // Load tasks from database
+  // Load tasks from database (with localStorage fallback)
   const loadTasksFromDatabase = async () => {
     try {
       console.log('🔄 Loading maintenance tasks from database...');
@@ -50,6 +50,29 @@ export default function VedlikeholdTab() {
 
       if (error) {
         console.error('❌ Error loading tasks from database:', error);
+        console.log('⚠️ Database table might not exist yet. Loading from localStorage...');
+        
+        // Fallback to localStorage
+        try {
+          const savedTasks = localStorage.getItem('maintenanceTasks');
+          if (savedTasks) {
+            const parsedTasks = JSON.parse(savedTasks).map((task: Record<string, unknown>) => ({
+              id: task.id as string,
+              postId: task.postId as number,
+              description: task.description as string,
+              tags: task.tags as string[],
+              priority: task.priority as 'low' | 'medium' | 'high' | 'urgent',
+              status: task.status as 'pending' | 'in-progress' | 'completed',
+              assignedTo: task.assignedTo as string | undefined,
+              createdAt: new Date(task.createdAt as string),
+              completedAt: task.completedAt ? new Date(task.completedAt as string) : undefined
+            }));
+            setTasks(parsedTasks);
+            console.log('✅ Loaded', parsedTasks.length, 'tasks from localStorage');
+          }
+        } catch (localStorageError) {
+          console.error('❌ Error loading from localStorage:', localStorageError);
+        }
         return;
       }
 
@@ -70,10 +93,33 @@ export default function VedlikeholdTab() {
       }
     } catch (error) {
       console.error('❌ Error loading tasks:', error);
+      console.log('⚠️ Loading from localStorage as fallback...');
+      
+      // Fallback to localStorage
+      try {
+        const savedTasks = localStorage.getItem('maintenanceTasks');
+        if (savedTasks) {
+          const parsedTasks = JSON.parse(savedTasks).map((task: Record<string, unknown>) => ({
+            id: task.id as string,
+            postId: task.postId as number,
+            description: task.description as string,
+            tags: task.tags as string[],
+            priority: task.priority as 'low' | 'medium' | 'high' | 'urgent',
+            status: task.status as 'pending' | 'in-progress' | 'completed',
+            assignedTo: task.assignedTo as string | undefined,
+            createdAt: new Date(task.createdAt as string),
+            completedAt: task.completedAt ? new Date(task.completedAt as string) : undefined
+          }));
+          setTasks(parsedTasks);
+          console.log('✅ Loaded', parsedTasks.length, 'tasks from localStorage');
+        }
+      } catch (localStorageError) {
+        console.error('❌ Error loading from localStorage:', localStorageError);
+      }
     }
   };
 
-  // Save task to database
+  // Save task to database (with localStorage fallback)
   const saveTaskToDatabase = async (task: MaintenanceTask) => {
     try {
       const { error } = await supabase
@@ -92,14 +138,40 @@ export default function VedlikeholdTab() {
 
       if (error) {
         console.error('❌ Error saving task to database:', error);
-        return false;
+        console.log('⚠️ Database table might not exist yet. Using localStorage fallback...');
+        
+        // Fallback to localStorage
+        try {
+          const existingTasks = JSON.parse(localStorage.getItem('maintenanceTasks') || '[]');
+          const updatedTasks = existingTasks.filter((t: any) => t.id !== task.id);
+          updatedTasks.push(task);
+          localStorage.setItem('maintenanceTasks', JSON.stringify(updatedTasks));
+          console.log('✅ Task saved to localStorage as fallback:', task.id);
+          return true;
+        } catch (localStorageError) {
+          console.error('❌ Error saving to localStorage:', localStorageError);
+          return false;
+        }
       }
 
       console.log('✅ Task saved to database:', task.id);
       return true;
     } catch (error) {
       console.error('❌ Error saving task:', error);
-      return false;
+      console.log('⚠️ Using localStorage fallback...');
+      
+      // Fallback to localStorage
+      try {
+        const existingTasks = JSON.parse(localStorage.getItem('maintenanceTasks') || '[]');
+        const updatedTasks = existingTasks.filter((t: any) => t.id !== task.id);
+        updatedTasks.push(task);
+        localStorage.setItem('maintenanceTasks', JSON.stringify(updatedTasks));
+        console.log('✅ Task saved to localStorage as fallback:', task.id);
+        return true;
+      } catch (localStorageError) {
+        console.error('❌ Error saving to localStorage:', localStorageError);
+        return false;
+      }
     }
   };
 
@@ -145,6 +217,12 @@ export default function VedlikeholdTab() {
       setNewTaskTags('');
       setNewTaskPriority('medium');
       console.log('✅ Task added successfully');
+      
+      // Check if we're using localStorage fallback
+      const savedTasks = localStorage.getItem('maintenanceTasks');
+      if (savedTasks && savedTasks.includes(newTask.id)) {
+        console.log('ℹ️ Task saved to localStorage (database not ready yet)');
+      }
     } else {
       console.error('❌ Failed to add task');
       alert('Kunne ikke lagre oppgaven. Prøv igjen.');
