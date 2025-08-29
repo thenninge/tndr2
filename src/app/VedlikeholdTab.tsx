@@ -55,7 +55,13 @@ export default function VedlikeholdTab() {
 
       if (data) {
         const parsedTasks = data.map((task: Record<string, unknown>) => ({
-          ...task,
+          id: task.id as string,
+          postId: task.post_id as number,
+          description: task.description as string,
+          tags: task.tags as string[],
+          priority: task.priority as 'low' | 'medium' | 'high' | 'urgent',
+          status: task.status as 'pending' | 'in-progress' | 'completed',
+          assignedTo: task.assigned_to as string | undefined,
           createdAt: new Date(task.created_at as string),
           completedAt: task.completed_at ? new Date(task.completed_at as string) : undefined
         }));
