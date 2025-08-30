@@ -29,6 +29,7 @@ export default function VedlikeholdTab() {
   const [newTaskDescription, setNewTaskDescription] = useState('');
   const [newTaskTags, setNewTaskTags] = useState('');
   const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [newTaskAssignedTo, setNewTaskAssignedTo] = useState('');
   const [filterOmrade, setFilterOmrade] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
@@ -253,6 +254,7 @@ export default function VedlikeholdTab() {
       tags: newTaskTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
       priority: newTaskPriority,
       status: 'pending',
+      assignedTo: newTaskAssignedTo.trim() || undefined,
       createdAt: new Date()
     };
 
@@ -263,6 +265,7 @@ export default function VedlikeholdTab() {
       setNewTaskDescription('');
       setNewTaskTags('');
       setNewTaskPriority('medium');
+      setNewTaskAssignedTo('');
       console.log('✅ Task added successfully');
       
       // Check if we're using localStorage fallback
@@ -498,6 +501,17 @@ export default function VedlikeholdTab() {
               <option value="urgent">Kritisk</option>
             </select>
           </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Lagt inn av:</label>
+            <input
+              type="text"
+              value={newTaskAssignedTo}
+              onChange={(e) => setNewTaskAssignedTo(e.target.value)}
+              placeholder="Skriv navn på jeger..."
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+            />
+          </div>
         </div>
 
         <div style={{ marginBottom: '16px' }}>
@@ -580,6 +594,7 @@ export default function VedlikeholdTab() {
                       </h4>
                       <p style={{ margin: '0 0 8px 0', color: '#6b7280', fontSize: '14px' }}>
                         {post?.omrade} • {task.createdAt.toLocaleDateString('nb-NO')}
+                        {task.assignedTo && ` • Lagt inn av: ${task.assignedTo}`}
                       </p>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
