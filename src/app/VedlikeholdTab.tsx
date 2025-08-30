@@ -36,17 +36,60 @@ export default function VedlikeholdTab() {
 
   // Load tasks from database on mount
   useEffect(() => {
+    testDatabaseConnection();
     loadTasksFromDatabase();
   }, []);
+
+  // Test database connection and table existence
+  const testDatabaseConnection = async () => {
+    try {
+      console.log('🔍 Testing database connection...');
+      
+      // Test basic connection
+      const { data: testData, error: testError } = await supabase
+        .from('morning_loggers')
+        .select('count')
+        .limit(1);
+      
+      console.log('📊 Connection test:', { 
+        success: !testError, 
+        error: testError?.message || 'none' 
+      });
+
+      // Test maintenance_tasks table
+      const { data: maintenanceData, error: maintenanceError } = await supabase
+        .from('maintenance_tasks')
+        .select('count')
+        .limit(1);
+      
+      console.log('📊 Maintenance table test:', { 
+        exists: !maintenanceError, 
+        error: maintenanceError?.message || 'none' 
+      });
+
+      if (maintenanceError) {
+        console.log('⚠️ maintenance_tasks table does not exist yet!');
+        console.log('💡 Run database_schema.sql in Supabase to create the table');
+      } else {
+        console.log('✅ maintenance_tasks table exists and is accessible');
+      }
+    } catch (error) {
+      console.error('❌ Database connection test failed:', error);
+    }
+  };
 
   // Load tasks from database (with localStorage fallback)
   const loadTasksFromDatabase = async () => {
     try {
       console.log('🔄 Loading maintenance tasks from database...');
+      console.log('🔍 Testing Supabase connection...');
+      
       const { data, error } = await supabase
         .from('maintenance_tasks')
         .select('*')
         .order('created_at', { ascending: false });
+
+      console.log('📊 Database response:', { data: data?.length || 0, error: error?.message || 'none' });
 
       if (error) {
         console.error('❌ Error loading tasks from database:', error);
@@ -122,6 +165,8 @@ export default function VedlikeholdTab() {
   // Save task to database (with localStorage fallback)
   const saveTaskToDatabase = async (task: MaintenanceTask) => {
     try {
+      console.log('💾 Attempting to save task to database:', task.id);
+      
       const { error } = await supabase
         .from('maintenance_tasks')
         .upsert({
@@ -135,6 +180,8 @@ export default function VedlikeholdTab() {
           created_at: task.createdAt.toISOString(),
           completed_at: task.completedAt?.toISOString()
         });
+
+      console.log('📊 Save response:', { error: error?.message || 'none' });
 
       if (error) {
         console.error('❌ Error saving task to database:', error);
