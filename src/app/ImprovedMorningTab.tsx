@@ -327,10 +327,20 @@ async function fetchRealTemperatureData(lat: number, lon: number): Promise<Point
       console.log(`⚠️ Limiting to 72 hours back: ${from.toISOString()}`);
     }
     
-    // Fetch temperature data from last_real_update to now
-    const temperatureData = await fetchHistory(lat, lon, from, now);
+    // IMPORTANT: Only fetch historical data up to and including yesterday
+    // This ensures we don't include current day data in historical fetch
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(23, 59, 59, 999); // End of yesterday
     
-    console.log(`✅ Fetched ${temperatureData.length} temperature points from ${from.toISOString()} to ${now.toISOString()}`);
+    const to = yesterday < from ? from : yesterday;
+    
+    console.log(`📅 Fetching historical data from ${from.toISOString()} to ${to.toISOString()} (yesterday)`);
+    
+    // Fetch temperature data from last_real_update to yesterday (not today)
+    const temperatureData = await fetchHistory(lat, lon, from, to);
+    
+    console.log(`✅ Fetched ${temperatureData.length} temperature points from ${from.toISOString()} to ${to.toISOString()}`);
     
     return temperatureData;
   } catch (error) {
@@ -547,10 +557,12 @@ export default function ImprovedMorningTab() {
         
         console.log(`🔄 Updating logger: ${logger.name}`);
         
-        // Update dataTable with real temperature data
+        // Only update tempLogg for points that don't already have historical data
+        // This prevents overwriting historical data that was already set in createDataTableOnStart
         const updatedDataTable = logger.dataTable.map(point => {
           const hourKey = floorToHour(point.timestamp).getTime();
-          if (tempMap.has(hourKey)) {
+          if (tempMap.has(hourKey) && point.tempLogg === null) {
+            // Only update if tempLogg is null (meaning it's forecast data that needs real data)
             return {
               ...point,
               tempLogg: tempMap.get(hourKey)!
@@ -791,64 +803,142 @@ function LoggerCard({
     async function createDataTableOnStart() {
       setLoading(true);
       try {
-        const forecast = await fetchForecast(logger.lat, logger.lng);
-        console.log('Creating dataTable on start:', forecast.length, 'points');
         console.log(`🎯 [createDataTableOnStart] Target: ${logger.target} DG, StartTime: ${logger.startTime}`);
         
         const dataTable: DataPoint[] = [];
         
-        // Beregn estimert ferdig tid først
-        let cumDG = 0;
-        let estimatedFinish: Date | undefined;
-        let targetReached = false;
-        let hoursAfterTarget = 0;
+        // Determine if this is a new logger (started today) or existing logger (started before today)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const startDate = new Date(logger.startTime!);
+        startDate.setHours(0, 0, 0, 0);
         
-        for (const point of forecast) {
-          // Start DG-akkumulering kun fra startTime og framover
-          if (point.time >= logger.startTime!) {
-            const periodOffset = getOffsetForTime(point.time, logger.dayOffset, logger.nightOffset);
-            const adjustedTemp = point.temp + periodOffset;
-            const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-            cumDG += dgHour / 24;
+        const isNewLogger = startDate >= today;
+        console.log(`📅 Logger started: ${startDate.toISOString().slice(0, 10)}, Today: ${today.toISOString().slice(0, 10)}, Is new logger: ${isNewLogger}`);
+        
+        if (isNewLogger) {
+          // For new loggers (started today), only use forecast data
+          console.log('🆕 New logger - using only forecast data');
+          const forecast = await fetchForecast(logger.lat, logger.lng);
+          console.log('Creating dataTable for new logger:', forecast.length, 'forecast points');
+          
+          // Calculate estimated finish time
+          let cumDG = 0;
+          let estimatedFinish: Date | undefined;
+          let targetReached = false;
+          let hoursAfterTarget = 0;
+          
+          for (const point of forecast) {
+            if (point.time >= logger.startTime!) {
+              const periodOffset = getOffsetForTime(point.time, logger.dayOffset, logger.nightOffset);
+              const adjustedTemp = point.temp + periodOffset;
+              const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+              cumDG += dgHour / 24;
+            }
+            
+            if (!targetReached && cumDG >= logger.target) {
+              targetReached = true;
+              estimatedFinish = point.time;
+              console.log(`🎯 [createDataTableOnStart] Target ${logger.target} DG reached at ${point.time.toLocaleString()}, cumDG: ${cumDG.toFixed(2)}`);
+            }
+            
+            if (targetReached) {
+              hoursAfterTarget++;
+              if (hoursAfterTarget >= 12) break;
+            }
           }
           
-          if (!targetReached && cumDG >= logger.target) {
-            targetReached = true;
-            estimatedFinish = point.time;
-            console.log(`🎯 [createDataTableOnStart] Target ${logger.target} DG reached at ${point.time.toLocaleString()}, cumDG: ${cumDG.toFixed(2)}`);
+          // Create dataTable with forecast data only
+          forecast.forEach(point => {
+            const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
+            
+            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
+              return;
+            }
+            
+            dataTable.push({
+              timestamp: floorToHour(point.time),
+              runtime: Math.max(0, runtime),
+              tempEst: point.temp,
+              tempLogg: null // Will be updated when we get historical data
+            });
+          });
+          
+          setEstimatedFinish(estimatedFinish);
+        } else {
+          // For existing loggers (started before today), combine historical + forecast data
+          console.log('📊 Existing logger - combining historical + forecast data');
+          
+          // Get historical data from start time to yesterday
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          yesterday.setHours(23, 59, 59, 999);
+          
+          const historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime!, yesterday);
+          console.log(`📈 Historical data: ${historicalData.length} points from ${logger.startTime!.toISOString()} to ${yesterday.toISOString()}`);
+          
+          // Get forecast data from today onwards
+          const forecast = await fetchForecast(logger.lat, logger.lng);
+          console.log(`🔮 Forecast data: ${forecast.length} points from today onwards`);
+          
+          // Combine historical and forecast data
+          const allData = [...historicalData, ...forecast];
+          console.log(`📊 Combined data: ${allData.length} total points`);
+          
+          // Calculate estimated finish time using combined data
+          let cumDG = 0;
+          let estimatedFinish: Date | undefined;
+          let targetReached = false;
+          let hoursAfterTarget = 0;
+          
+          for (const point of allData) {
+            if (point.time >= logger.startTime!) {
+              const periodOffset = getOffsetForTime(point.time, logger.dayOffset, logger.nightOffset);
+              const adjustedTemp = point.temp + periodOffset;
+              const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+              cumDG += dgHour / 24;
+            }
+            
+            if (!targetReached && cumDG >= logger.target) {
+              targetReached = true;
+              estimatedFinish = point.time;
+              console.log(`🎯 [createDataTableOnStart] Target ${logger.target} DG reached at ${point.time.toLocaleString()}, cumDG: ${cumDG.toFixed(2)}`);
+            }
+            
+            if (targetReached) {
+              hoursAfterTarget++;
+              if (hoursAfterTarget >= 12) break;
+            }
           }
           
-          // Stopp 12 timer etter target er nådd
-          if (targetReached) {
-            hoursAfterTarget++;
-            if (hoursAfterTarget >= 12) break;
-          }
+          // Create dataTable with combined data
+          allData.forEach(point => {
+            const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
+            
+            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
+              return;
+            }
+            
+            // Determine if this is historical or forecast data
+            const isHistorical = point.time <= yesterday;
+            
+            dataTable.push({
+              timestamp: floorToHour(point.time),
+              runtime: Math.max(0, runtime),
+              tempEst: isHistorical ? null : point.temp, // Only forecast data has tempEst
+              tempLogg: isHistorical ? point.temp : null // Historical data has tempLogg
+            });
+          });
+          
+          setEstimatedFinish(estimatedFinish);
         }
         
-        // Opprett dataTable kun opp til estimert ferdig + 12 timer
-        forecast.forEach(point => {
-          const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
-          
-          // Stopp hvis vi har nådd 12 timer etter target
-          if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
-            return;
-          }
-          
-          dataTable.push({
-            timestamp: point.time,
-            runtime: Math.max(0, runtime), // Ikke negativ runtime
-            tempEst: point.temp,
-            tempLogg: null // Vil bli oppdatert når vi får historiske data
-          });
-        });
-        
-        // Oppdater logger med ny dataTable
+        // Update logger with new dataTable
         setLoggers(loggers => loggers.map(l => l.id === logger.id ? {
           ...l,
           dataTable: dataTable
         } : l));
         
-        setEstimatedFinish(estimatedFinish);
       } catch (err) {
         console.error("Feil ved opprettelse av dataTable ved start:", err);
       } finally {
