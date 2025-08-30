@@ -34,6 +34,11 @@ export default function VedlikeholdTab() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskDescription, setEditTaskDescription] = useState('');
+  const [editTaskTags, setEditTaskTags] = useState('');
+  const [editTaskPriority, setEditTaskPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [editTaskAssignedTo, setEditTaskAssignedTo] = useState('');
 
   // Load tasks from database on mount
   useEffect(() => {
@@ -309,6 +314,47 @@ export default function VedlikeholdTab() {
         console.error('❌ Failed to delete task');
         alert('Kunne ikke slette oppgaven. Prøv igjen.');
       }
+    }
+  };
+
+  const startEditingTask = (task: MaintenanceTask) => {
+    setEditingTaskId(task.id);
+    setEditTaskDescription(task.description);
+    setEditTaskTags(task.tags.join(', '));
+    setEditTaskPriority(task.priority);
+    setEditTaskAssignedTo(task.assignedTo || '');
+  };
+
+  const cancelEditingTask = () => {
+    setEditingTaskId(null);
+    setEditTaskDescription('');
+    setEditTaskTags('');
+    setEditTaskPriority('medium');
+    setEditTaskAssignedTo('');
+  };
+
+  const saveEditedTask = async () => {
+    if (!editingTaskId || !editTaskDescription.trim()) return;
+
+    const task = tasks.find(t => t.id === editingTaskId);
+    if (!task) return;
+
+    const updatedTask = {
+      ...task,
+      description: editTaskDescription.trim(),
+      tags: editTaskTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
+      priority: editTaskPriority,
+      assignedTo: editTaskAssignedTo.trim() || undefined
+    };
+
+    const success = await saveTaskToDatabase(updatedTask);
+    if (success) {
+      setTasks(prev => prev.map(t => t.id === editingTaskId ? updatedTask : t));
+      cancelEditingTask();
+      console.log('✅ Task updated successfully');
+    } else {
+      console.error('❌ Failed to update task');
+      alert('Kunne ikke oppdatere oppgaven. Prøv igjen.');
     }
   };
 
@@ -624,26 +670,120 @@ export default function VedlikeholdTab() {
                     </div>
                   </div>
 
-                  <p style={{ margin: '0 0 12px 0', lineHeight: '1.5' }}>
-                    {task.description}
-                  </p>
-
-                  {task.tags.length > 0 && (
+                  {editingTaskId === task.id ? (
+                    // Editing mode
                     <div style={{ marginBottom: '12px' }}>
-                      {task.tags.map(tag => (
-                        <span key={tag} style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          margin: '0 4px 4px 0',
-                          backgroundColor: '#e0e7ff',
-                          color: '#3730a3',
-                          borderRadius: '12px',
-                          fontSize: '12px'
-                        }}>
-                          {tag}
-                        </span>
-                      ))}
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500', fontSize: '14px' }}>Beskrivelse:</label>
+                        <textarea
+                          value={editTaskDescription}
+                          onChange={(e) => setEditTaskDescription(e.target.value)}
+                          style={{ 
+                            width: '100%', 
+                            padding: '8px', 
+                            borderRadius: '4px', 
+                            border: '1px solid #d1d5db',
+                            minHeight: '60px',
+                            resize: 'vertical',
+                            fontSize: '14px'
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500', fontSize: '14px' }}>Prioritet:</label>
+                          <select 
+                            value={editTaskPriority} 
+                            onChange={(e) => setEditTaskPriority(e.target.value as 'low' | 'medium' | 'high' | 'urgent')}
+                            style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
+                          >
+                            <option value="low">Lav</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">Høy</option>
+                            <option value="urgent">Kritisk</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500', fontSize: '14px' }}>Lagt inn av:</label>
+                          <input
+                            type="text"
+                            value={editTaskAssignedTo}
+                            onChange={(e) => setEditTaskAssignedTo(e.target.value)}
+                            style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500', fontSize: '14px' }}>Tags (kommaseparert):</label>
+                        <input
+                          type="text"
+                          value={editTaskTags}
+                          onChange={(e) => setEditTaskTags(e.target.value)}
+                          style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '14px' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          onClick={saveEditedTask}
+                          disabled={!editTaskDescription.trim()}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: editTaskDescription.trim() ? '#16a34a' : '#9ca3af',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: editTaskDescription.trim() ? 'pointer' : 'not-allowed',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                          }}
+                        >
+                          Lagre
+                        </button>
+                        <button
+                          onClick={cancelEditingTask}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#6b7280',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                        >
+                          Avbryt
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    // View mode
+                    <>
+                      <p style={{ margin: '0 0 12px 0', lineHeight: '1.5' }}>
+                        {task.description}
+                      </p>
+
+                      {task.tags.length > 0 && (
+                        <div style={{ marginBottom: '12px' }}>
+                          {task.tags.map(tag => (
+                            <span key={tag} style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              margin: '0 4px 4px 0',
+                              backgroundColor: '#e0e7ff',
+                              color: '#3730a3',
+                              borderRadius: '12px',
+                              fontSize: '12px'
+                            }}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
 
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -656,6 +796,23 @@ export default function VedlikeholdTab() {
                       <option value="in-progress">Under arbeid</option>
                       <option value="completed">Fullført</option>
                     </select>
+
+                    {editingTaskId !== task.id && (
+                      <button
+                        onClick={() => startEditingTask(task)}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: '#0ea5e9',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Endre
+                      </button>
+                    )}
 
                     <button
                       onClick={() => deleteTask(task.id)}
