@@ -764,7 +764,12 @@ export default function ImprovedMorningTab() {
       )}
 
       {loggers.map((logger) => (
-        <LoggerCard key={logger.id} logger={logger} setLoggers={setLoggers} />
+        <LoggerCard 
+          key={logger.id} 
+          logger={logger} 
+          setLoggers={setLoggers}
+          updateRealTemperatureData={updateRealTemperatureData}
+        />
       ))}
     </section>
   );
@@ -773,9 +778,11 @@ export default function ImprovedMorningTab() {
 function LoggerCard({
   logger,
   setLoggers,
+  updateRealTemperatureData,
 }: {
   logger: Logger;
   setLoggers: React.Dispatch<React.SetStateAction<Logger[]>>;
+  updateRealTemperatureData: () => Promise<boolean>;
 }) {
   const [estimatedFinish, setEstimatedFinish] = useState<Date | undefined>();
   const [loading, setLoading] = useState(false);
@@ -996,10 +1003,16 @@ function LoggerCard({
       }
       
       try {
-        console.log(`🔄 [updateRealLog] Calling fetchRealTemperatureData for ${logger.name}`);
+        console.log(`🔄 [updateRealLog] Calling updateRealTemperatureData for ${logger.name}`);
         setLastRefreshTime(now);
-        // For now, just log that we would update - the function is not properly scoped
-        console.log(`🔄 [updateRealLog] Would update real temperature data for ${logger.name}`);
+        
+        // Call the actual update function
+        const success = await updateRealTemperatureData();
+        if (success) {
+          console.log(`✅ [updateRealLog] Successfully updated real temperature data for ${logger.name}`);
+        } else {
+          console.log(`❌ [updateRealLog] Failed to update real temperature data for ${logger.name}`);
+        }
       } catch (err) {
         console.error("Feil ved oppdatering av reell logg:", err);
       }
