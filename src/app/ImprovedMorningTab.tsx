@@ -454,6 +454,7 @@ export default function ImprovedMorningTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [debugData, setDebugData] = useState<string>("");
 
   // Load loggers from database on component mount and periodically
   useEffect(() => {
@@ -613,6 +614,45 @@ export default function ImprovedMorningTab() {
     }
   }, [loggers, setLoggers]);
 
+  // Debug function to test API data
+  const testApiData = async () => {
+    try {
+      setDebugData("🔄 Testing API data...\n");
+      
+      const lat = 60.7249;
+      const lon = 9.0365;
+      
+      // Test data for yesterday (30/8) from 12:00 to 23:00
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(12, 0, 0, 0); // Start at 12:00
+      
+      const endTime = new Date(yesterday);
+      endTime.setHours(23, 59, 59, 999); // End at 23:59
+      
+      setDebugData(prev => prev + `📅 Fetching data from ${yesterday.toISOString()} to ${endTime.toISOString()}\n`);
+      
+      const temperatureData = await fetchHistory(lat, lon, yesterday, endTime);
+      
+      setDebugData(prev => prev + `✅ Fetched ${temperatureData.length} temperature points\n\n`);
+      
+      // Show each temperature point
+      temperatureData.forEach((point, index) => {
+        const timeStr = point.time.toLocaleString('no-NO', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        setDebugData(prev => prev + `${index + 1}. ${timeStr}: ${point.temp.toFixed(1)}°C\n`);
+      });
+      
+    } catch (error) {
+      setDebugData(prev => prev + `❌ Error: ${error}\n`);
+    }
+  };
+
   // Legacy function for backward compatibility (now calls the new function)
   // const refreshRealLog = async (logger: Logger): Promise<Logger> => {
   //   console.log(`🔄 [refreshRealLog] Called for logger ${logger.name} - redirecting to new updateRealTemperatureData function`);
@@ -655,7 +695,7 @@ export default function ImprovedMorningTab() {
         🥩 Forbedret Mørning
       </h2>
 
-      <div style={{ marginBottom: 20 }}>
+      <div style={{ marginBottom: 20, display: 'flex', gap: 16, alignItems: 'center' }}>
         <button
           onClick={() => setShowAdd((v) => !v)}
           style={{
@@ -669,6 +709,21 @@ export default function ImprovedMorningTab() {
           }}
         >
           ➕ Legg til ny mørningslogg
+        </button>
+        
+        <button
+          onClick={testApiData}
+          style={{
+            padding: "12px 24px",
+            borderRadius: 8,
+            background: "#ffe0e0",
+            border: "1px solid #d8b2b2",
+            fontSize: 16,
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          🐛 Test API Data
         </button>
       </div>
 
@@ -753,6 +808,49 @@ export default function ImprovedMorningTab() {
             ❌ Avbryt
           </button>
         </form>
+      )}
+
+      {/* Debug section */}
+      {debugData && (
+        <div style={{ 
+          marginBottom: 20, 
+          padding: 16, 
+          backgroundColor: '#f0f0f0', 
+          borderRadius: 8,
+          border: '1px solid #ccc'
+        }}>
+          <h3 style={{ marginBottom: 12, fontSize: 16, fontWeight: 'bold' }}>🐛 Debug: API Data Test</h3>
+          <textarea
+            value={debugData}
+            readOnly
+            style={{
+              width: '100%',
+              minHeight: '200px',
+              padding: 12,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              fontFamily: 'monospace',
+              fontSize: 12,
+              backgroundColor: '#fff',
+              resize: 'vertical'
+            }}
+          />
+          <button
+            onClick={() => setDebugData("")}
+            style={{
+              marginTop: 8,
+              padding: '8px 16px',
+              borderRadius: 6,
+              background: '#6b7280',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 14
+            }}
+          >
+            Clear Debug
+          </button>
+        </div>
       )}
 
       {loggers.length === 0 && (
