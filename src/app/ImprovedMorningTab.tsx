@@ -211,12 +211,14 @@ async function getLastRealUpdate(): Promise<Date | null> {
 
     if (error) {
       console.error('❌ Error getting last_real_update:', error);
+      console.log('⚠️ global_settings table might not exist yet, returning null');
       return null;
     }
 
     return data?.last_real_update ? new Date(data.last_real_update) : null;
   } catch (error) {
     console.error('❌ Error getting last_real_update:', error);
+    console.log('⚠️ global_settings table might not exist yet, returning null');
     return null;
   }
 }
@@ -233,6 +235,7 @@ async function updateLastRealUpdate(): Promise<boolean> {
 
     if (error) {
       console.error('❌ Error updating last_real_update:', error);
+      console.log('⚠️ global_settings table might not exist yet, skipping update');
       return false;
     }
 
@@ -240,6 +243,7 @@ async function updateLastRealUpdate(): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('❌ Error updating last_real_update:', error);
+    console.log('⚠️ global_settings table might not exist yet, skipping update');
     return false;
   }
 }
@@ -305,7 +309,7 @@ async function fetchRealTemperatureData(lat: number, lon: number): Promise<Point
     const now = new Date();
     
     if (!lastRealUpdate) {
-      console.log('⚠️ No last_real_update found, using current time');
+      console.log('⚠️ No last_real_update found, fetching last 24 hours of historical data');
       // If no last_real_update, fetch last 24 hours
       const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       return await fetchHistory(lat, lon, from, now);
