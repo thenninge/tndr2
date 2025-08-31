@@ -300,7 +300,7 @@ const API_RATE_LIMIT = 1000; // 1 second between API calls
 let lastApiCall = 0;
 
 // New function to fetch real temperature data based on last_real_update
-async function fetchRealTemperatureData(lat: number, lon: number): Promise<Point[]> {
+async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTime?: Date): Promise<Point[]> {
   try {
     console.log('🔄 Fetching real temperature data...');
     
@@ -308,28 +308,25 @@ async function fetchRealTemperatureData(lat: number, lon: number): Promise<Point
     const lastRealUpdate = await getLastRealUpdate();
     const now = new Date();
     
-    if (!lastRealUpdate) {
-      console.log('⚠️ No last_real_update found, fetching last 24 hours of historical data');
-      // If no last_real_update, fetch last 24 hours
-      const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      return await fetchHistory(lat, lon, from, now);
+    // Determine the start time for historical data
+    // If we have a logger start time, use that as the minimum
+    // Otherwise use last_real_update or 24 hours back
+    let from: Date;
+    
+    if (loggerStartTime) {
+      // Use logger start time as the earliest point
+      from = loggerStartTime;
+      console.log(`📅 Using logger start time as from: ${from.toISOString()}`);
+    } else if (lastRealUpdate) {
+      from = lastRealUpdate;
+      console.log(`📅 Using last_real_update as from: ${from.toISOString()}`);
+    } else {
+      // Fallback to 24 hours back
+      from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      console.log(`📅 No last_real_update found, using 24 hours back: ${from.toISOString()}`);
     }
     
-    console.log(`📅 Last real update: ${lastRealUpdate.toISOString()}`);
     console.log(`📅 Current time: ${now.toISOString()}`);
-    
-    // Calculate time difference
-    const timeDiff = now.getTime() - lastRealUpdate.getTime();
-    const hoursDiff = timeDiff / (1000 * 60 * 60);
-    
-    console.log(`⏰ Time difference: ${hoursDiff.toFixed(1)} hours`);
-    
-    // If more than 72 hours, limit to 72 hours back
-    let from = lastRealUpdate;
-    if (hoursDiff > 72) {
-      from = new Date(now.getTime() - 72 * 60 * 60 * 1000);
-      console.log(`⚠️ Limiting to 72 hours back: ${from.toISOString()}`);
-    }
     
     // IMPORTANT: Only fetch historical data up to and including yesterday
     // This ensures we don't include current day data in historical fetch
@@ -341,7 +338,7 @@ async function fetchRealTemperatureData(lat: number, lon: number): Promise<Point
     
     console.log(`📅 Fetching historical data from ${from.toISOString()} to ${to.toISOString()} (yesterday)`);
     
-    // Fetch temperature data from last_real_update to yesterday (not today)
+    // Fetch temperature data from start time to yesterday (not today)
     const temperatureData = await fetchHistory(lat, lon, from, to);
     
     console.log(`✅ Fetched ${temperatureData.length} temperature points from ${from.toISOString()} to ${to.toISOString()}`);
@@ -536,8 +533,15 @@ export default function ImprovedMorningTab() {
       
       console.log(`📍 Using location: ${lat}, ${lon} for all loggers`);
       
-      // Fetch real temperature data based on last_real_update
-      const temperatureData = await fetchRealTemperatureData(lat, lon);
+      // Fetch real temperature data based on logger start time
+      // Use the earliest start time among all running loggers
+      const earliestStartTime = runningLoggers.reduce((earliest, logger) => {
+        if (!logger.startTime) return earliest;
+        if (!earliest) return logger.startTime;
+        return logger.startTime < earliest ? logger.startTime : earliest;
+      }, null as Date | null);
+      
+      const temperatureData = await fetchRealTemperatureData(lat, lon, earliestStartTime || undefined);
       
       if (temperatureData.length === 0) {
         console.log('⚠️ No temperature data received, skipping update');
