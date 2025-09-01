@@ -280,8 +280,8 @@ function getOffsetForTime(time: Date, dayOffset: number, nightOffset: number): n
 
 // Forecast: filtrer til >= nåværende hele time (WeatherAPI.com for mørningslogg)
 async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
-  const url = `https://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=7&aqi=no`;
-  console.log(`🌍 [fetchForecast] Calling WeatherAPI.com: ${url}`);
+  const url = `/api/weather?type=forecast&lat=${lat}&lon=${lon}`;
+  console.log(`🌍 [fetchForecast] Calling weather proxy: ${url}`);
   
   const res = await fetch(url);
   console.log(`🌍 [fetchForecast] Response status: ${res.status} ${res.statusText}`);
@@ -289,7 +289,7 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
   if (!res.ok) {
     const errorText = await res.text();
     console.error(`❌ [fetchForecast] API error: ${res.status} ${res.statusText}`, errorText);
-    throw new Error(`Kunne ikke hente værdata fra WeatherAPI.com: ${res.status} ${res.statusText}`);
+    throw new Error(`Kunne ikke hente værdata fra weather proxy: ${res.status} ${res.statusText}`);
   }
   
   const data = await res.json();
@@ -351,8 +351,8 @@ async function fetchTodayData(lat: number, lon: number, specificDate?: Date): Pr
   const targetDate = specificDate || new Date();
   const dateStr = targetDate.toISOString().slice(0, 10);
   
-  const url = `https://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=1&aqi=no`;
-  console.log(`🌍 [fetchTodayData] Calling WeatherAPI.com: ${url}`);
+  const url = `/api/weather?type=today&lat=${lat}&lon=${lon}`;
+  console.log(`🌍 [fetchTodayData] Calling weather proxy: ${url}`);
   
   const res = await fetch(url);
   console.log(`🌍 [fetchTodayData] Response status: ${res.status} ${res.statusText}`);
@@ -360,7 +360,7 @@ async function fetchTodayData(lat: number, lon: number, specificDate?: Date): Pr
   if (!res.ok) {
     const errorText = await res.text();
     console.error(`❌ [fetchTodayData] API error: ${res.status} ${res.statusText}`, errorText);
-    throw new Error("Kunne ikke hente dagens værdata fra WeatherAPI.com");
+    throw new Error("Kunne ikke hente dagens værdata fra weather proxy");
   }
   
   const data = await res.json();
@@ -533,7 +533,7 @@ async function fetchHistory(
     
     while (currentDate <= to) {
       const dateStr = currentDate.toISOString().slice(0, 10);
-      const url = `https://api.weatherapi.com/v1/history.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&dt=${dateStr}`;
+      const url = `/api/weather?type=history&lat=${lat}&lon=${lon}&date=${dateStr}`;
       
       console.log(`🌍 Fetching historical data from WeatherAPI.com for date: ${dateStr}`);
       
@@ -624,7 +624,7 @@ async function fetchTempForTime(
   time: Date
 ): Promise<number | null> {
   // Bruk forecast API fra WeatherAPI.com
-  const url = `https://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=7&aqi=no`;
+  const url = `/api/weather?type=forecast&lat=${lat}&lon=${lon}`;
 
   const res = await fetch(url);
   if (!res.ok) return null;
