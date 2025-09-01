@@ -1289,7 +1289,7 @@ function LoggerCard({
             const now = new Date();
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
-            const isFutureHour = point.time > currentHour;
+            const isFutureHour = point.time >= currentHour; // Changed from > to >= to include current hour
             
             // For historical data, we need to handle runtime differently
             // Historical data should show tempLogg for past hours, tempEst for future hours
@@ -1299,7 +1299,7 @@ function LoggerCard({
             dataTable.push({
               timestamp: point.time, // Use exact time, not floorToHour
               runtime: validRuntime,
-              tempEst: isFutureHour ? point.temp : null, // All future hours have tempEst for DG estimation
+              tempEst: isFutureHour ? point.temp : null, // All future hours (including current) have tempEst for DG estimation
               tempLogg: isHistorical ? point.temp : null // Historical data has tempLogg
             });
           });
