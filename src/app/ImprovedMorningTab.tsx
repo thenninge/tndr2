@@ -280,10 +280,20 @@ function getOffsetForTime(time: Date, dayOffset: number, nightOffset: number): n
 
 // Forecast: filtrer til >= nåværende hele time (WeatherAPI.com for mørningslogg)
 async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
-  const url = `http://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=7&aqi=no`;
+  const url = `https://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=7&aqi=no`;
+  console.log(`🌍 [fetchForecast] Calling WeatherAPI.com: ${url}`);
+  
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Kunne ikke hente værdata fra WeatherAPI.com");
+  console.log(`🌍 [fetchForecast] Response status: ${res.status} ${res.statusText}`);
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`❌ [fetchForecast] API error: ${res.status} ${res.statusText}`, errorText);
+    throw new Error(`Kunne ikke hente værdata fra WeatherAPI.com: ${res.status} ${res.statusText}`);
+  }
+  
   const data = await res.json();
+  console.log(`✅ [fetchForecast] Successfully fetched data with ${data.forecast?.forecastday?.length || 0} forecast days`);
 
   if (!data.forecast || !data.forecast.forecastday) {
     throw new Error("Ugyldig data-struktur fra WeatherAPI.com");
@@ -341,10 +351,20 @@ async function fetchTodayData(lat: number, lon: number, specificDate?: Date): Pr
   const targetDate = specificDate || new Date();
   const dateStr = targetDate.toISOString().slice(0, 10);
   
-  const url = `http://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=1&aqi=no`;
+  const url = `https://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=1&aqi=no`;
+  console.log(`🌍 [fetchTodayData] Calling WeatherAPI.com: ${url}`);
+  
   const res = await fetch(url);
-  if (!res.ok) throw new Error("Kunne ikke hente dagens værdata fra WeatherAPI.com");
+  console.log(`🌍 [fetchTodayData] Response status: ${res.status} ${res.statusText}`);
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`❌ [fetchTodayData] API error: ${res.status} ${res.statusText}`, errorText);
+    throw new Error("Kunne ikke hente dagens værdata fra WeatherAPI.com");
+  }
+  
   const data = await res.json();
+  console.log(`✅ [fetchTodayData] Successfully fetched data with ${data.forecast?.forecastday?.length || 0} forecast days`);
 
   if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
     throw new Error("Ugyldig data-struktur fra WeatherAPI.com");
@@ -513,7 +533,7 @@ async function fetchHistory(
     
     while (currentDate <= to) {
       const dateStr = currentDate.toISOString().slice(0, 10);
-      const url = `http://api.weatherapi.com/v1/history.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&dt=${dateStr}`;
+      const url = `https://api.weatherapi.com/v1/history.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&dt=${dateStr}`;
       
       console.log(`🌍 Fetching historical data from WeatherAPI.com for date: ${dateStr}`);
       
@@ -604,7 +624,7 @@ async function fetchTempForTime(
   time: Date
 ): Promise<number | null> {
   // Bruk forecast API fra WeatherAPI.com
-  const url = `http://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=7&aqi=no`;
+  const url = `https://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=7&aqi=no`;
 
   const res = await fetch(url);
   if (!res.ok) return null;
@@ -1046,12 +1066,38 @@ function LoggerCard({
           console.log('🆕 New logger - combining today\'s data + forecast data');
           
           // Get today's data (including past hours)
-          const todayData = await fetchTodayData(logger.lat, logger.lng);
-          console.log('Today\'s data for new logger:', todayData.length, 'points');
+          let todayData: Point[] = [];
+          try {
+            console.log(`🔍 [fetchTodayData] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}`);
+            todayData = await fetchTodayData(logger.lat, logger.lng);
+            console.log('✅ Today\'s data for new logger:', todayData.length, 'points');
+          } catch (error) {
+            console.error('❌ Error fetching today\'s data:', error);
+            console.error('❌ Error details:', {
+              message: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : 'No stack trace',
+              lat: logger.lat,
+              lon: logger.lng
+            });
+            todayData = [];
+          }
           
           // Get forecast data (future hours)
-          const forecast = await fetchForecast(logger.lat, logger.lng);
-          console.log('Forecast data for new logger:', forecast.length, 'points');
+          let forecast: Point[] = [];
+          try {
+            console.log(`🔍 [fetchForecast] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}`);
+            forecast = await fetchForecast(logger.lat, logger.lng);
+            console.log('✅ Forecast data for new logger:', forecast.length, 'points');
+          } catch (error) {
+            console.error('❌ Error fetching forecast data:', error);
+            console.error('❌ Error details:', {
+              message: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : 'No stack trace',
+              lat: logger.lat,
+              lon: logger.lng
+            });
+            forecast = [];
+          }
           
           // Combine today's data and forecast data
           const allData = [...todayData, ...forecast];
@@ -1141,12 +1187,40 @@ function LoggerCard({
           yesterday.setDate(yesterday.getDate() - 1);
           yesterday.setHours(23, 59, 59, 999);
           
-          const historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime!, yesterday);
-          console.log(`📈 Historical data: ${historicalData.length} points from ${logger.startTime!.toISOString()} to ${yesterday.toISOString()}`);
+          let historicalData: Point[] = [];
+          try {
+            console.log(`🔍 [fetchHistory] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}, from: ${logger.startTime!.toISOString()}, to: ${yesterday.toISOString()}`);
+            historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime!, yesterday);
+            console.log(`✅ Historical data: ${historicalData.length} points from ${logger.startTime!.toISOString()} to ${yesterday.toISOString()}`);
+          } catch (error) {
+            console.error('❌ Error fetching historical data:', error);
+            console.error('❌ Error details:', {
+              message: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : 'No stack trace',
+              lat: logger.lat,
+              lon: logger.lng,
+              from: logger.startTime!.toISOString(),
+              to: yesterday.toISOString()
+            });
+            historicalData = [];
+          }
           
           // Get forecast data from today onwards
-          const forecast = await fetchForecast(logger.lat, logger.lng);
-          console.log(`🔮 Forecast data: ${forecast.length} points from today onwards`);
+          let forecast: Point[] = [];
+          try {
+            console.log(`🔍 [fetchForecast] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}`);
+            forecast = await fetchForecast(logger.lat, logger.lng);
+            console.log(`✅ Forecast data: ${forecast.length} points from today onwards`);
+          } catch (error) {
+            console.error('❌ Error fetching forecast data:', error);
+            console.error('❌ Error details:', {
+              message: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : 'No stack trace',
+              lat: logger.lat,
+              lon: logger.lng
+            });
+            forecast = [];
+          }
           
           // Combine historical and forecast data
           const allData = [...historicalData, ...forecast];
