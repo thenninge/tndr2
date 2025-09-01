@@ -455,15 +455,15 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
     
     const temperatureData: Point[] = [];
     
-    // With WeatherAPI.com, we can fetch historical data up to the previous hour
-    // So we fetch from start time up to the previous hour
-    const previousHour = new Date(now);
-    previousHour.setHours(previousHour.getHours() - 1, 59, 59, 999);
+    // With WeatherAPI.com, we can fetch historical data up to the current hour
+    // So we fetch from start time up to the current hour
+    const currentHour = new Date(now);
+    currentHour.setMinutes(0, 0, 0);
     
-    if (from < previousHour) {
-      console.log(`📅 Fetching historical data from ${from.toISOString()} to ${previousHour.toISOString()}`);
+    if (from < currentHour) {
+      console.log(`📅 Fetching historical data from ${from.toISOString()} to ${currentHour.toISOString()}`);
       
-      const historicalData = await fetchHistory(lat, lon, from, previousHour);
+      const historicalData = await fetchHistory(lat, lon, from, currentHour);
       temperatureData.push(...historicalData);
       console.log(`✅ Fetched ${historicalData.length} historical temperature points`);
     } else {
@@ -476,8 +476,6 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
     const todayData = await fetchTodayData(lat, lon);
     
     // Include data up to and including current hour to avoid gaps
-    const currentHour = new Date(now);
-    currentHour.setMinutes(0, 0, 0);
     const filteredTodayData = todayData.filter(point => point.time <= currentHour);
     
     console.log(`📅 Current time: ${now.toISOString()}, Current hour: ${currentHour.toISOString()}`);
@@ -1062,24 +1060,24 @@ function LoggerCard({
         console.log(`📅 Logger started: ${startDate.toISOString().slice(0, 10)}, Today: ${today.toISOString().slice(0, 10)}, Is new logger: ${isNewLogger}`);
         
         if (isNewLogger) {
-          // For new loggers (started today), combine today's data + forecast data
-          console.log('🆕 New logger - combining today\'s data + forecast data');
+          // For new loggers (started today), combine historical data + today's data + forecast data
+          console.log('🆕 New logger - combining historical + today\'s data + forecast data');
           
-          // Get today's data (including past hours)
-          let todayData: Point[] = [];
+          // Get real temperature data (historical + today's data up to current hour)
+          let realData: Point[] = [];
           try {
-            console.log(`🔍 [fetchTodayData] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}`);
-            todayData = await fetchTodayData(logger.lat, logger.lng);
-            console.log('✅ Today\'s data for new logger:', todayData.length, 'points');
+            console.log(`🔍 [fetchRealTemperatureData] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}, startTime: ${logger.startTime}`);
+            realData = await fetchRealTemperatureData(logger.lat, logger.lng, logger.startTime);
+            console.log('✅ Real temperature data for new logger:', realData.length, 'points');
           } catch (error) {
-            console.error('❌ Error fetching today\'s data:', error);
+            console.error('❌ Error fetching real temperature data:', error);
             console.error('❌ Error details:', {
               message: error instanceof Error ? error.message : 'Unknown error',
               stack: error instanceof Error ? error.stack : 'No stack trace',
               lat: logger.lat,
               lon: logger.lng
             });
-            todayData = [];
+            realData = [];
           }
           
           // Get forecast data (future hours)
@@ -1099,8 +1097,8 @@ function LoggerCard({
             forecast = [];
           }
           
-          // Combine today's data and forecast data
-          const allData = [...todayData, ...forecast];
+          // Combine real data and forecast data
+          const allData = [...realData, ...forecast];
           console.log('Combined data for new logger:', allData.length, 'total points');
           
           // Calculate estimated finish time
