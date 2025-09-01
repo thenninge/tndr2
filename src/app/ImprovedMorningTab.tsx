@@ -276,22 +276,7 @@ function getOffsetForTime(time: Date, dayOffset: number, nightOffset: number): n
 }
 
 /** ===== Open-Meteo fetchers ===== **/
-// Forecast: filtrer til >= nåværende hele time (Open-Meteo - beholdes for andre tabs)
-async function fetchForecastOpenMeteo(lat: number, lon: number): Promise<Point[]> {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&forecast_days=7&timezone=auto`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Kunne ikke hente værdata");
-  const data = await res.json();
 
-  const raw: Point[] = data.hourly.time.map((t: string, i: number) => ({
-    time: new Date(t),
-    temp: data.hourly.temperature_2m[i],
-  }));
-
-  const nowHour = floorToHour(new Date());
-  // behold kun punkter fra denne timen og framover
-  return raw.filter((p) => p.time >= nowHour);
-}
 
 // Forecast: filtrer til >= nåværende hele time (WeatherAPI.com for mørningslogg)
 async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
@@ -306,12 +291,12 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
 
   const raw: Point[] = [];
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  
 
   // Process each forecast day
-  data.forecast.forecastday.forEach((forecastDay: any) => {
+  data.forecast.forecastday.forEach((forecastDay: { date: string; hour?: Array<{ time: string; temp_c: number }> }) => {
     if (forecastDay.hour) {
-      forecastDay.hour.forEach((hour: any) => {
+      forecastDay.hour.forEach((hour: { time: string; temp_c: number }) => {
         try {
           // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
           // We need to extract just the time part (HH:MM)
@@ -349,28 +334,7 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
   return raw.filter((p) => p.time >= nowHour);
 }
 
-// New function to fetch today's data (including past hours) - Open-Meteo (beholdes for andre tabs)
-async function fetchTodayDataOpenMeteo(lat: number, lon: number): Promise<Point[]> {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&forecast_days=1&timezone=auto`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Kunne ikke hente dagens værdata");
-  const data = await res.json();
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const raw: Point[] = data.hourly.time.map((t: string, i: number) => ({
-    time: new Date(t),
-    temp: data.hourly.temperature_2m[i],
-  }));
-
-  // Return all of today's data (including past hours)
-  return raw.filter((p) => {
-    const pointDate = new Date(p.time);
-    pointDate.setHours(0, 0, 0, 0);
-    return pointDate.getTime() === today.getTime();
-  });
-}
 
 // New function to fetch today's data (including past hours) - WeatherAPI.com for mørningslogg
 async function fetchTodayData(lat: number, lon: number, specificDate?: Date): Promise<Point[]> {
@@ -391,7 +355,7 @@ async function fetchTodayData(lat: number, lon: number, specificDate?: Date): Pr
     throw new Error("Ingen timebaserte data fra WeatherAPI.com");
   }
 
-  const raw: Point[] = forecastDay.hour.map((hour: any) => {
+  const raw: Point[] = forecastDay.hour.map((hour: { time: string; temp_c: number }) => {
     try {
       // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
       // We need to extract just the time part (HH:MM)
@@ -469,7 +433,7 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
     
     // With WeatherAPI.com, we can fetch historical data up to the previous hour
     
-    let temperatureData: Point[] = [];
+    const temperatureData: Point[] = [];
     
     // With WeatherAPI.com, we can fetch historical data up to the previous hour
     // So we fetch from start time up to the previous hour
@@ -511,72 +475,7 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
   }
 }
 
-// Henter historiske data fra Open-Meteo (beholdes for andre tabs)
-async function fetchHistoryOpenMeteo(
-  lat: number,
-  lon: number,
-  from: Date,
-  to: Date
-): Promise<Point[]> {
-  try {
-    const cacheKey = `openmeteo_${lat},${lon},${from.toISOString().slice(0, 10)},${to.toISOString().slice(0, 10)}`;
-    const now = Date.now();
-    
-    // Check cache first
-    const cached = apiCache.get(cacheKey);
-    console.log(`🔍 Checking Open-Meteo cache for key: ${cacheKey}`);
-    console.log(`🔍 Cache hit: ${cached ? 'YES' : 'NO'}, age: ${cached ? Math.round((now - cached.timestamp) / 1000 / 60) : 'N/A'} minutes`);
-    
-    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-      console.log(`📦 Using cached Open-Meteo data for: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
-      return cached.data;
-    }
-    
-    // Rate limiting: wait if we called API too recently
-    const timeSinceLastCall = now - lastApiCall;
-    if (timeSinceLastCall < API_RATE_LIMIT) {
-      const waitTime = API_RATE_LIMIT - timeSinceLastCall;
-      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before Open-Meteo API call`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-    lastApiCall = Date.now();
-    
-    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&start_date=${from
-      .toISOString()
-      .slice(0, 10)}&end_date=${to
-      .toISOString()
-      .slice(0, 10)}&timezone=auto`;
 
-    console.log(`🌍 Fetching historical data from Open-Meteo: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
-    
-    const res = await fetch(url);
-    if (!res.ok) {
-      console.error(`❌ Open-Meteo API error: ${res.status} ${res.statusText}`);
-      throw new Error(`Kunne ikke hente historiske data: ${res.status} ${res.statusText}`);
-    }
-    
-    const data = await res.json();
-    
-    if (!data.hourly || !data.hourly.time || !data.hourly.temperature_2m) {
-      console.error('❌ Invalid data structure from Open-Meteo:', data);
-      throw new Error("Ugyldig data-struktur fra Open-Meteo");
-    }
-
-    const points = data.hourly.time.map((t: string, i: number) => ({
-      time: new Date(t),
-      temp: data.hourly.temperature_2m[i],
-    }));
-    
-    // Cache the result
-    apiCache.set(cacheKey, { data: points, timestamp: now });
-    
-    console.log(`✅ Successfully fetched ${points.length} historical temperature points from Open-Meteo`);
-    return points;
-  } catch (error) {
-    console.error('❌ Error fetching historical data from Open-Meteo:', error);
-    throw error;
-  }
-}
 
 // Henter historiske data fra WeatherAPI.com for mørningslogg (støtter data opp til noen timer siden)
 async function fetchHistory(
@@ -642,7 +541,7 @@ async function fetchHistory(
       }
       
       // Extract hourly temperature data
-      const hourlyData = forecastDay.hour.map((hour: any) => {
+      const hourlyData = forecastDay.hour.map((hour: { time: string; temp_c: number }) => {
         try {
           // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
           // We need to extract just the time part (HH:MM)
@@ -696,32 +595,7 @@ async function fetchHistory(
   }
 }
 
-// Henter temperatur for en spesifikk tid (for akselerert tid) - Open-Meteo (beholdes for andre tabs)
-async function fetchTempForTimeOpenMeteo(
-  lat: number,
-  lon: number,
-  time: Date
-): Promise<number | null> {
-  // Bruk forecast API i stedet for archive API for fremtidige datoer
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&timezone=auto`;
 
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const data = await res.json();
-
-  // Finn temperaturen for den spesifikke timen
-  const targetHour = time.getHours();
-  const targetDate = time.toISOString().slice(0, 10);
-  
-  for (let i = 0; i < data.hourly.time.length; i++) {
-    const dataTime = new Date(data.hourly.time[i]);
-    const dataDate = dataTime.toISOString().slice(0, 10);
-    if (dataDate === targetDate && dataTime.getHours() === targetHour) {
-      return data.hourly.temperature_2m[i];
-    }
-  }
-  return null;
-}
 
 // Henter temperatur for en spesifikk tid (for akselerert tid) - WeatherAPI.com for mørningslogg
 async function fetchTempForTime(
@@ -809,23 +683,23 @@ export default function ImprovedMorningTab() {
       console.log('✅ Component loaded, loggers state updated');
     }
     
-    async function pollLoggers() {
-      setIsPolling(true);
-      await loadLoggers();
-      setIsPolling(false);
-    }
-    
     // Load immediately
     loadLoggers();
-    
-    // Set up periodic polling every 2 minutes to sync deletions/updates across devices (reduced frequency to avoid rate limiting)
-    const interval = setInterval(pollLoggers, 120000);
-    
-    return () => clearInterval(interval);
   }, []);
 
-  // Save loggers to database whenever they change (but not during polling)
-  const [isPolling, setIsPolling] = useState(false);
+  // Auto-save loggers to database when they change
+  useEffect(() => {
+    if (loggers.length > 0) {
+      console.log('💾 Auto-saving loggers to database...');
+      const saveAllLoggers = async () => {
+        for (const logger of loggers) {
+          await saveLoggerToDatabase(logger);
+        }
+        console.log('✅ All loggers auto-saved to database');
+      };
+      saveAllLoggers();
+    }
+  }, [loggers]);
   
   // New function to update real temperature data for all running loggers
   const updateRealTemperatureData = useCallback(async (): Promise<boolean> => {
@@ -949,8 +823,8 @@ export default function ImprovedMorningTab() {
   // };
   
   useEffect(() => {
-    console.log('🔄 useEffect triggered - loading:', loading, 'loggers.length:', loggers.length, 'isPolling:', isPolling);
-    if (!loading && !isPolling) {
+    console.log('🔄 useEffect triggered - loading:', loading, 'loggers.length:', loggers.length);
+    if (!loading) {
       if (loggers.length > 0) {
         const saveAllLoggers = async () => {
           console.log('💾 Saving all loggers to database...');
@@ -965,7 +839,7 @@ export default function ImprovedMorningTab() {
         console.log('📝 No loggers to save (empty array)');
       }
     }
-  }, [loggers, loading, isPolling]);
+  }, [loggers, loading]);
 
   return (
     <section>
@@ -1239,7 +1113,7 @@ function LoggerCard({
             today.setHours(0, 0, 0, 0);
             const isHistorical = pointDate.getTime() < today.getTime();
             const isTodayData = pointDate.getTime() === today.getTime() && point.time <= currentHour;
-            const isForecast = pointDate.getTime() === today.getTime() && point.time > currentHour;
+    
             
             // For new loggers, we want to show forecast data for future hours to enable DG estimation
             // So we'll use tempEst for future hours and tempLogg for past/current hours
@@ -1380,7 +1254,7 @@ function LoggerCard({
     }
     
     createDataTableOnStart();
-  }, [logger.startTime, logger.id, logger.dataTable?.length]);
+  }, [logger.startTime, logger.id, logger.dataTable?.length, logger.name, logger.lat, logger.lng, logger.target, logger.dayOffset, logger.nightOffset, logger.baseTemp]);
 
   // Beregn estimatedFinish når dataTable endres (for eksisterende logger)
   useEffect(() => {
@@ -1408,7 +1282,7 @@ function LoggerCard({
     }
     
     setEstimatedFinish(estimatedFinish);
-  }, [logger.dataTable, logger.startTime, logger.target, logger.dayOffset, logger.nightOffset, logger.baseTemp]);
+  }, [logger.dataTable, logger.startTime, logger.target, logger.dayOffset, logger.nightOffset, logger.baseTemp, logger.id]);
 
   // Rate limiting for refreshRealLog to avoid too many API calls
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
@@ -1452,7 +1326,7 @@ function LoggerCard({
       const interval = setInterval(updateRealLog, 300000); // Oppdater hvert 5. minutt i stedet for hvert minutt
       return () => clearInterval(interval);
     }
-  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime, updateRealTemperatureData]);
+  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime, updateRealTemperatureData, logger.name]);
 
   // Akselerert tid simulator
   useEffect(() => {
@@ -1512,7 +1386,7 @@ function LoggerCard({
 
     const interval = setInterval(accelerateTime, 2000); // Hvert 2. sekund
     return () => clearInterval(interval);
-  }, [isAccelerating, logger.isRunning, logger.startTime, logger.lat, logger.lng, acceleratedTime, logger.dataTable]);
+  }, [isAccelerating, logger.isRunning, logger.startTime, logger.lat, logger.lng, acceleratedTime, logger.dataTable, logger.id, setLoggers]);
 
   return (
     <div
