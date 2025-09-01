@@ -1004,8 +1004,6 @@ function LoggerCard({
 }) {
   const [estimatedFinish, setEstimatedFinish] = useState<Date | undefined>();
   const [loading, setLoading] = useState(false);
-  const [acceleratedTime, setAcceleratedTime] = useState<Date | undefined>();
-  const [isAccelerating, setIsAccelerating] = useState(false);
 
 
 
@@ -1328,65 +1326,7 @@ function LoggerCard({
     }
   }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime, updateRealTemperatureData, logger.name]);
 
-  // Akselerert tid simulator
-  useEffect(() => {
-    if (!isAccelerating || !logger.isRunning || !logger.startTime) return;
 
-    async function accelerateTime() {
-      try {
-        // Øk tiden med 1 time
-        const currentTime = acceleratedTime || new Date(); // Start fra nåværende tid, ikke startTime
-        if (!currentTime) return;
-        
-        const newTime = new Date(currentTime);
-        newTime.setHours(newTime.getHours() + 1);
-        setAcceleratedTime(newTime);
-
-        // Hent temperatur for den nye tiden
-        const temp = await fetchTempForTime(logger.lat, logger.lng, newTime);
-        
-        if (temp !== null) {
-          console.log(`🔍 Søker etter tidspunkt: ${newTime.toLocaleString()}`);
-          console.log(`📊 DataTable har ${logger.dataTable.length} punkter`);
-          
-          // Oppdater dataTable med ny temperatur
-          setLoggers(loggers => loggers.map(l => {
-            if (l.id === logger.id) {
-              let foundMatch = false;
-              const updatedDataTable = l.dataTable.map(point => {
-                // Match tidspunkt med 1 time toleranse (for å håndtere millisekunder)
-                const timeDiff = Math.abs(point.timestamp.getTime() - newTime.getTime());
-                if (timeDiff < 60 * 60 * 1000) { // 1 time i millisekunder
-                  console.log(`✅ MATCH! Oppdaterer tempLogg for ${point.timestamp.toLocaleString()} med ${temp}°C`);
-                  foundMatch = true;
-                  return { ...point, tempLogg: temp };
-                }
-                return point;
-              });
-              
-              if (!foundMatch) {
-                console.log(`❌ INGEN MATCH funnet for ${newTime.toLocaleString()}`);
-                console.log(`🔍 Nærmeste tidspunkt i dataTable:`);
-                l.dataTable.slice(0, 5).forEach((point, i) => {
-                  console.log(`  ${i}: ${point.timestamp.toLocaleString()}`);
-                });
-              }
-              
-              return { ...l, dataTable: updatedDataTable };
-            }
-            return l;
-          }));
-          
-          console.log(`Akselerert tid: ${newTime.toLocaleString()}, Temp: ${temp}°C`);
-        }
-      } catch (err) {
-        console.error("Feil ved akselerert tid:", err);
-      }
-    }
-
-    const interval = setInterval(accelerateTime, 2000); // Hvert 2. sekund
-    return () => clearInterval(interval);
-  }, [isAccelerating, logger.isRunning, logger.startTime, logger.lat, logger.lng, acceleratedTime, logger.dataTable, logger.id, setLoggers]);
 
   return (
     <div
@@ -1601,30 +1541,7 @@ function LoggerCard({
           />
         </label>
 
-        <button 
-          onClick={() => {
-            if (!isAccelerating) {
-              setIsAccelerating(true);
-              setAcceleratedTime(logger.startTime || new Date());
-            } else {
-              setIsAccelerating(false);
-              setAcceleratedTime(undefined);
-            }
-          }}
-          disabled={!logger.isRunning}
-          style={{ 
-            padding: '8px 16px', 
-            borderRadius: 8, 
-            background: isAccelerating ? '#ffd700' : '#f0f0f0', 
-            border: '1px solid #ccc', 
-            fontSize: 14, 
-            cursor: logger.isRunning ? 'pointer' : 'not-allowed',
-            fontWeight: 'bold',
-            opacity: logger.isRunning ? 1 : 0.5
-          }}
-        >
-          {isAccelerating ? '⏩ Akselererer...' : '⏩ Akselerer tid'}
-        </button>
+
       </div>
 
       {/* Estimated Finish and Current Time */}
@@ -1654,7 +1571,7 @@ function LoggerCard({
           )}
         </span>
         <span>
-          ⏰ Tid nå: {(acceleratedTime || new Date()).toLocaleString("no-NO", {
+          ⏰ Tid nå: {new Date().toLocaleString("no-NO", {
             weekday: "long",
             year: "numeric",
             month: "long",
@@ -1662,7 +1579,6 @@ function LoggerCard({
             hour: "2-digit",
             minute: "2-digit"
           })}
-          {isAccelerating && " (AKSELERERT)"}
         </span>
       </div>
 
