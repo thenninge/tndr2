@@ -1114,6 +1114,10 @@ function LoggerCard({
           // Combine real data and forecast data
           const allData = [...realData, ...forecast];
           console.log('Combined data for new logger:', allData.length, 'total points');
+          console.log('🔍 [createDataTableOnStart] Sample data points:', allData.slice(0, 3).map(p => ({
+            time: p.time.toISOString(),
+            temp: p.temp
+          })));
           
           // Calculate estimated finish time
           let cumDG = 0;
@@ -1325,8 +1329,28 @@ function LoggerCard({
           accumulatedDG: totalAccumulatedDG
         };
         
+        console.log(`🔍 [createDataTableOnStart] About to update logger with dataTable:`, {
+          loggerId: logger.id,
+          loggerName: logger.name,
+          dataTableLength: dataTable.length,
+          sampleDataPoints: dataTable.slice(0, 3).map(p => ({
+            timestamp: p.timestamp.toISOString(),
+            runtime: p.runtime,
+            tempLogg: p.tempLogg,
+            tempEst: p.tempEst
+          }))
+        });
+        
         // Update logger with new dataTable
-        setLoggers(loggers => loggers.map(l => l.id === logger.id ? updatedLogger : l));
+        setLoggers(loggers => {
+          const updatedLoggers = loggers.map(l => l.id === logger.id ? updatedLogger : l);
+          console.log(`🔍 [setLoggers] Updated loggers state:`, {
+            totalLoggers: updatedLoggers.length,
+            updatedLoggerIndex: updatedLoggers.findIndex(l => l.id === logger.id),
+            updatedLoggerDataTableLength: updatedLoggers.find(l => l.id === logger.id)?.dataTable?.length || 0
+          });
+          return updatedLoggers;
+        });
         
         console.log(`✅ [createDataTableOnStart] Successfully created dataTable with ${dataTable.length} points for logger ${logger.name}`);
         
