@@ -545,6 +545,14 @@ async function fetchHistory(
       
       const data = await res.json();
       
+      console.log(`🔍 [fetchHistory] Raw response for ${dateStr}:`, {
+        hasForecast: !!data.forecast,
+        hasForecastDay: !!data.forecast?.forecastday,
+        forecastDayLength: data.forecast?.forecastday?.length || 0,
+        dataKeys: Object.keys(data),
+        forecastKeys: data.forecast ? Object.keys(data.forecast) : 'no forecast'
+      });
+      
       if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
         console.error(`❌ Invalid data structure from WeatherAPI.com for ${dateStr}:`, data);
         currentDate.setDate(currentDate.getDate() + 1);
@@ -552,6 +560,12 @@ async function fetchHistory(
       }
       
       const forecastDay = data.forecast.forecastday[0];
+      console.log(`🔍 [fetchHistory] First forecast day for ${dateStr}:`, {
+        hasHour: !!forecastDay.hour,
+        hourLength: forecastDay.hour?.length || 0,
+        dayKeys: Object.keys(forecastDay)
+      });
+      
       if (!forecastDay.hour) {
         console.error(`❌ No hourly data from WeatherAPI.com for ${dateStr}`);
         currentDate.setDate(currentDate.getDate() + 1);

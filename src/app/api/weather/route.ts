@@ -37,6 +37,19 @@ export async function GET(req: NextRequest) {
     const response = await fetch(url);
     const data = await response.json();
     
+    console.log(`🌍 [Weather API Proxy] Response for ${type}:`, {
+      status: response.status,
+      hasForecast: !!data.forecast,
+      hasHistory: !!data.forecast?.forecastday,
+      dataKeys: Object.keys(data),
+      sampleData: type === 'history' ? {
+        hasForecast: !!data.forecast,
+        hasHistory: !!data.forecast?.forecastday,
+        forecastKeys: data.forecast ? Object.keys(data.forecast) : 'no forecast',
+        firstForecastDay: data.forecast?.forecastday?.[0] ? Object.keys(data.forecast.forecastday[0]) : 'no forecastday'
+      } : 'not history'
+    });
+    
     if (!response.ok) {
       console.error(`❌ [Weather API Proxy] Error: ${response.status} ${response.statusText}`, data);
       return NextResponse.json({ error: data.error || 'Weather API error' }, { status: response.status });
