@@ -1299,7 +1299,7 @@ function LoggerCard({
             const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
             
             dataTable.push({
-              timestamp: floorToHour(point.time),
+              timestamp: point.time, // Use exact time, not floorToHour
               runtime: validRuntime,
               tempEst: isFutureHour ? point.temp : null, // All future hours have tempEst for DG estimation
               tempLogg: isHistorical ? point.temp : null // Historical data has tempLogg
