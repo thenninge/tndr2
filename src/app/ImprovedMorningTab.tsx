@@ -276,8 +276,8 @@ function getOffsetForTime(time: Date, dayOffset: number, nightOffset: number): n
 }
 
 /** ===== Open-Meteo fetchers ===== **/
-// Forecast: filtrer til >= nåværende hele time
-async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
+// Forecast: filtrer til >= nåværende hele time (Open-Meteo - beholdes for andre tabs)
+async function fetchForecastOpenMeteo(lat: number, lon: number): Promise<Point[]> {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&forecast_days=7&timezone=auto`;
   const res = await fetch(url);
   if (!res.ok) throw new Error("Kunne ikke hente værdata");
@@ -291,6 +291,145 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
   const nowHour = floorToHour(new Date());
   // behold kun punkter fra denne timen og framover
   return raw.filter((p) => p.time >= nowHour);
+}
+
+// Forecast: filtrer til >= nåværende hele time (WeatherAPI.com for mørningslogg)
+async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
+  const url = `http://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=7&aqi=no`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Kunne ikke hente værdata fra WeatherAPI.com");
+  const data = await res.json();
+
+  if (!data.forecast || !data.forecast.forecastday) {
+    throw new Error("Ugyldig data-struktur fra WeatherAPI.com");
+  }
+
+  const raw: Point[] = [];
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  // Process each forecast day
+  data.forecast.forecastday.forEach((forecastDay: any) => {
+    if (forecastDay.hour) {
+      forecastDay.hour.forEach((hour: any) => {
+        try {
+          // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
+          // We need to extract just the time part (HH:MM)
+          let timeString;
+          if (hour.time.includes(' ')) {
+            // If hour.time contains space, extract just the time part
+            const timePart = hour.time.split(' ')[1]; // Get "00:00" part
+            timeString = `${forecastDay.date}T${timePart}`;
+          } else {
+            // If hour.time is just "00:00", use it directly
+            timeString = `${forecastDay.date}T${hour.time}`;
+          }
+          
+          const hourTime = new Date(timeString);
+          
+          // Debug: log the time parsing
+          if (!isNaN(hourTime.getTime())) {
+            console.log(`🔍 [Forecast] Parsing time: "${timeString}" -> ${hourTime.toISOString()}, valid: true`);
+            raw.push({
+              time: hourTime,
+              temp: hour.temp_c,
+            });
+          } else {
+            console.error(`❌ [Forecast] Invalid time format: "${timeString}" from hour:`, hour);
+          }
+        } catch (error) {
+          console.error(`❌ [Forecast] Error parsing time for hour:`, hour, 'Error:', error);
+        }
+      });
+    }
+  });
+
+  const nowHour = floorToHour(new Date());
+  // behold kun punkter fra denne timen og framover
+  return raw.filter((p) => p.time >= nowHour);
+}
+
+// New function to fetch today's data (including past hours) - Open-Meteo (beholdes for andre tabs)
+async function fetchTodayDataOpenMeteo(lat: number, lon: number): Promise<Point[]> {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&forecast_days=1&timezone=auto`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Kunne ikke hente dagens værdata");
+  const data = await res.json();
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const raw: Point[] = data.hourly.time.map((t: string, i: number) => ({
+    time: new Date(t),
+    temp: data.hourly.temperature_2m[i],
+  }));
+
+  // Return all of today's data (including past hours)
+  return raw.filter((p) => {
+    const pointDate = new Date(p.time);
+    pointDate.setHours(0, 0, 0, 0);
+    return pointDate.getTime() === today.getTime();
+  });
+}
+
+// New function to fetch today's data (including past hours) - WeatherAPI.com for mørningslogg
+async function fetchTodayData(lat: number, lon: number, specificDate?: Date): Promise<Point[]> {
+  const targetDate = specificDate || new Date();
+  const dateStr = targetDate.toISOString().slice(0, 10);
+  
+  const url = `http://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=1&aqi=no`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Kunne ikke hente dagens værdata fra WeatherAPI.com");
+  const data = await res.json();
+
+  if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
+    throw new Error("Ugyldig data-struktur fra WeatherAPI.com");
+  }
+
+  const forecastDay = data.forecast.forecastday[0];
+  if (!forecastDay.hour) {
+    throw new Error("Ingen timebaserte data fra WeatherAPI.com");
+  }
+
+  const raw: Point[] = forecastDay.hour.map((hour: any) => {
+    try {
+      // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
+      // We need to extract just the time part (HH:MM)
+      let timeString;
+      if (hour.time.includes(' ')) {
+        // If hour.time contains space, extract just the time part
+        const timePart = hour.time.split(' ')[1]; // Get "00:00" part
+        timeString = `${dateStr}T${timePart}`;
+      } else {
+        // If hour.time is just "00:00", use it directly
+        timeString = `${dateStr}T${hour.time}`;
+      }
+      
+      const parsedTime = new Date(timeString);
+      
+      // Debug: log the time parsing
+      if (!isNaN(parsedTime.getTime())) {
+        console.log(`🔍 [Today] Parsing time: "${timeString}" -> ${parsedTime.toISOString()}, valid: true`);
+        return {
+          time: parsedTime,
+          temp: hour.temp_c,
+        };
+      } else {
+        console.error(`❌ [Today] Invalid time format: "${timeString}" from hour:`, hour);
+        return null;
+      }
+    } catch (error) {
+      console.error(`❌ [Today] Error parsing time for hour:`, hour, 'Error:', error);
+      return null;
+    }
+  }).filter(Boolean); // Remove null entries
+
+  // Return all of the target date's data (including past hours)
+  return raw.filter((p) => {
+    const pointDate = new Date(p.time);
+    pointDate.setHours(0, 0, 0, 0);
+    return pointDate.getTime() === targetDate.getTime();
+  });
 }
 
 // Cache for API calls to avoid rate limiting
@@ -328,20 +467,42 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
     
     console.log(`📅 Current time: ${now.toISOString()}`);
     
-    // IMPORTANT: Only fetch historical data up to and including yesterday
-    // This ensures we don't include current day data in historical fetch
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(23, 59, 59, 999); // End of yesterday
+    // With WeatherAPI.com, we can fetch historical data up to the previous hour
     
-    const to = yesterday < from ? from : yesterday;
+    let temperatureData: Point[] = [];
     
-    console.log(`📅 Fetching historical data from ${from.toISOString()} to ${to.toISOString()} (yesterday)`);
+    // With WeatherAPI.com, we can fetch historical data up to the previous hour
+    // So we fetch from start time up to the previous hour
+    const previousHour = new Date(now);
+    previousHour.setHours(previousHour.getHours() - 1, 59, 59, 999);
     
-    // Fetch temperature data from start time to yesterday (not today)
-    const temperatureData = await fetchHistory(lat, lon, from, to);
+    if (from < previousHour) {
+      console.log(`📅 Fetching historical data from ${from.toISOString()} to ${previousHour.toISOString()}`);
+      
+      const historicalData = await fetchHistory(lat, lon, from, previousHour);
+      temperatureData.push(...historicalData);
+      console.log(`✅ Fetched ${historicalData.length} historical temperature points`);
+    } else {
+      console.log(`📅 Logger started too recently (${from.toISOString()}), no historical data needed`);
+    }
     
-    console.log(`✅ Fetched ${temperatureData.length} temperature points from ${from.toISOString()} to ${to.toISOString()}`);
+    // Get today's data (including past hours) to fill any remaining gaps
+    console.log(`📅 Fetching today's data to fill remaining gaps`);
+    
+    const todayData = await fetchTodayData(lat, lon);
+    
+    // Include data up to and including current hour to avoid gaps
+    const currentHour = new Date(now);
+    currentHour.setMinutes(0, 0, 0);
+    const filteredTodayData = todayData.filter(point => point.time <= currentHour);
+    
+    console.log(`📅 Current time: ${now.toISOString()}, Current hour: ${currentHour.toISOString()}`);
+    console.log(`📊 Today's data points: ${todayData.length}, Filtered to current hour: ${filteredTodayData.length}`);
+    
+    temperatureData.push(...filteredTodayData);
+    console.log(`✅ Fetched ${filteredTodayData.length} today's temperature points`);
+    
+    console.log(`✅ Total: ${temperatureData.length} temperature points from ${from.toISOString()} to ${now.toISOString()}`);
     
     return temperatureData;
   } catch (error) {
@@ -350,24 +511,24 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
   }
 }
 
-// Henter historiske data fra from → to med caching og rate limiting
-async function fetchHistory(
+// Henter historiske data fra Open-Meteo (beholdes for andre tabs)
+async function fetchHistoryOpenMeteo(
   lat: number,
   lon: number,
   from: Date,
   to: Date
 ): Promise<Point[]> {
   try {
-    const cacheKey = `${lat},${lon},${from.toISOString().slice(0, 10)},${to.toISOString().slice(0, 10)}`;
+    const cacheKey = `openmeteo_${lat},${lon},${from.toISOString().slice(0, 10)},${to.toISOString().slice(0, 10)}`;
     const now = Date.now();
     
     // Check cache first
     const cached = apiCache.get(cacheKey);
-    console.log(`🔍 Checking cache for key: ${cacheKey}`);
+    console.log(`🔍 Checking Open-Meteo cache for key: ${cacheKey}`);
     console.log(`🔍 Cache hit: ${cached ? 'YES' : 'NO'}, age: ${cached ? Math.round((now - cached.timestamp) / 1000 / 60) : 'N/A'} minutes`);
     
     if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-      console.log(`📦 Using cached data for: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
+      console.log(`📦 Using cached Open-Meteo data for: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
       return cached.data;
     }
     
@@ -375,7 +536,7 @@ async function fetchHistory(
     const timeSinceLastCall = now - lastApiCall;
     if (timeSinceLastCall < API_RATE_LIMIT) {
       const waitTime = API_RATE_LIMIT - timeSinceLastCall;
-      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before API call`);
+      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before Open-Meteo API call`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     lastApiCall = Date.now();
@@ -409,16 +570,134 @@ async function fetchHistory(
     // Cache the result
     apiCache.set(cacheKey, { data: points, timestamp: now });
     
-    console.log(`✅ Successfully fetched ${points.length} historical temperature points`);
+    console.log(`✅ Successfully fetched ${points.length} historical temperature points from Open-Meteo`);
     return points;
   } catch (error) {
-    console.error('❌ Error fetching historical data:', error);
+    console.error('❌ Error fetching historical data from Open-Meteo:', error);
     throw error;
   }
 }
 
-// Henter temperatur for en spesifikk tid (for akselerert tid)
-async function fetchTempForTime(
+// Henter historiske data fra WeatherAPI.com for mørningslogg (støtter data opp til noen timer siden)
+async function fetchHistory(
+  lat: number,
+  lon: number,
+  from: Date,
+  to: Date
+): Promise<Point[]> {
+  try {
+    const cacheKey = `weatherapi_${lat},${lon},${from.toISOString().slice(0, 10)},${to.toISOString().slice(0, 10)}`;
+    const now = Date.now();
+    
+    // Check cache first
+    const cached = apiCache.get(cacheKey);
+    console.log(`🔍 Checking WeatherAPI cache for key: ${cacheKey}`);
+    console.log(`🔍 Cache hit: ${cached ? 'YES' : 'NO'}, age: ${cached ? Math.round((now - cached.timestamp) / 1000 / 60) : 'N/A'} minutes`);
+    
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      console.log(`📦 Using cached WeatherAPI data for: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
+      return cached.data;
+    }
+    
+    // Rate limiting: wait if we called API too recently
+    const timeSinceLastCall = now - lastApiCall;
+    if (timeSinceLastCall < API_RATE_LIMIT) {
+      const waitTime = API_RATE_LIMIT - timeSinceLastCall;
+      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before WeatherAPI call`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    lastApiCall = Date.now();
+    
+    // WeatherAPI.com supports historical data up to a few hours ago
+    const points: Point[] = [];
+    const currentDate = new Date(from);
+    
+    while (currentDate <= to) {
+      const dateStr = currentDate.toISOString().slice(0, 10);
+      const url = `http://api.weatherapi.com/v1/history.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&dt=${dateStr}`;
+      
+      console.log(`🌍 Fetching historical data from WeatherAPI.com for date: ${dateStr}`);
+      
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error(`❌ WeatherAPI.com error for ${dateStr}: ${res.status} ${res.statusText}`);
+        // Continue with next date instead of failing completely
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
+      const data = await res.json();
+      
+      if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
+        console.error(`❌ Invalid data structure from WeatherAPI.com for ${dateStr}:`, data);
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
+      const forecastDay = data.forecast.forecastday[0];
+      if (!forecastDay.hour) {
+        console.error(`❌ No hourly data from WeatherAPI.com for ${dateStr}`);
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
+      // Extract hourly temperature data
+      const hourlyData = forecastDay.hour.map((hour: any) => {
+        try {
+          // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
+          // We need to extract just the time part (HH:MM)
+          let timeString;
+          if (hour.time.includes(' ')) {
+            // If hour.time contains space, extract just the time part
+            const timePart = hour.time.split(' ')[1]; // Get "00:00" part
+            timeString = `${dateStr}T${timePart}`;
+          } else {
+            // If hour.time is just "00:00", use it directly
+            timeString = `${dateStr}T${hour.time}`;
+          }
+          
+          const parsedTime = new Date(timeString);
+          
+          // Debug: log the time parsing
+          if (!isNaN(parsedTime.getTime())) {
+            console.log(`🔍 Parsing time: "${timeString}" -> ${parsedTime.toISOString()}, valid: true`);
+            return {
+              time: parsedTime,
+              temp: hour.temp_c,
+            };
+          } else {
+            console.error(`❌ Invalid time format: "${timeString}" from hour:`, hour);
+            return null;
+          }
+        } catch (error) {
+          console.error(`❌ Error parsing time for hour:`, hour, 'Error:', error);
+          return null;
+        }
+      }).filter(Boolean); // Remove null entries
+      
+      points.push(...hourlyData);
+      console.log(`✅ Fetched ${hourlyData.length} valid temperature points for ${dateStr}`);
+      
+      // Move to next date
+      currentDate.setDate(currentDate.getDate() + 1);
+      
+      // Small delay to be respectful to the API
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // Cache the result
+    apiCache.set(cacheKey, { data: points, timestamp: now });
+    
+    console.log(`✅ Successfully fetched ${points.length} total historical temperature points from WeatherAPI.com`);
+    return points;
+  } catch (error) {
+    console.error('❌ Error fetching historical data from WeatherAPI.com:', error);
+    throw error;
+  }
+}
+
+// Henter temperatur for en spesifikk tid (for akselerert tid) - Open-Meteo (beholdes for andre tabs)
+async function fetchTempForTimeOpenMeteo(
   lat: number,
   lon: number,
   time: Date
@@ -444,6 +723,40 @@ async function fetchTempForTime(
   return null;
 }
 
+// Henter temperatur for en spesifikk tid (for akselerert tid) - WeatherAPI.com for mørningslogg
+async function fetchTempForTime(
+  lat: number,
+  lon: number,
+  time: Date
+): Promise<number | null> {
+  // Bruk forecast API fra WeatherAPI.com
+  const url = `http://api.weatherapi.com/v1/forecast.json?key=a38ce2793c8946aebd2195626250109&q=${lat},${lon}&days=7&aqi=no`;
+
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+
+  if (!data.forecast || !data.forecast.forecastday) {
+    return null;
+  }
+
+  // Finn temperaturen for den spesifikke timen
+  const targetHour = time.getHours();
+  const targetDate = time.toISOString().slice(0, 10);
+  
+  for (const forecastDay of data.forecast.forecastday) {
+    if (forecastDay.date === targetDate && forecastDay.hour) {
+      for (const hour of forecastDay.hour) {
+        const hourTime = new Date(`${forecastDay.date}T${hour.time}`);
+        if (hourTime.getHours() === targetHour) {
+          return hour.temp_c;
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /** ===== Estimator ===== **/
 
 
@@ -454,7 +767,9 @@ export default function ImprovedMorningTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [loading, setLoading] = useState(true);
-  const [debugData, setDebugData] = useState<string>("");
+
+  
+  const [customStartTime, setCustomStartTime] = useState<string>("");
 
   // Load loggers from database on component mount and periodically
   useEffect(() => {
@@ -614,44 +929,7 @@ export default function ImprovedMorningTab() {
     }
   }, [loggers, setLoggers]);
 
-  // Debug function to test API data
-  const testApiData = async () => {
-    try {
-      setDebugData("🔄 Testing API data...\n");
-      
-      const lat = 60.7249;
-      const lon = 9.0365;
-      
-      // Test data for yesterday (30/8) from 12:00 to 23:00
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      yesterday.setHours(12, 0, 0, 0); // Start at 12:00
-      
-      const endTime = new Date(yesterday);
-      endTime.setHours(23, 59, 59, 999); // End at 23:59
-      
-      setDebugData(prev => prev + `📅 Fetching data from ${yesterday.toISOString()} to ${endTime.toISOString()}\n`);
-      
-      const temperatureData = await fetchHistory(lat, lon, yesterday, endTime);
-      
-      setDebugData(prev => prev + `✅ Fetched ${temperatureData.length} temperature points\n\n`);
-      
-      // Show each temperature point
-      temperatureData.forEach((point, index) => {
-        const timeStr = point.time.toLocaleString('no-NO', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-        setDebugData(prev => prev + `${index + 1}. ${timeStr}: ${point.temp.toFixed(1)}°C\n`);
-      });
-      
-    } catch (error) {
-      setDebugData(prev => prev + `❌ Error: ${error}\n`);
-    }
-  };
+
 
   // Legacy function for backward compatibility (now calls the new function)
   // const refreshRealLog = async (logger: Logger): Promise<Logger> => {
@@ -711,20 +989,7 @@ export default function ImprovedMorningTab() {
           ➕ Legg til ny mørningslogg
         </button>
         
-        <button
-          onClick={testApiData}
-          style={{
-            padding: "12px 24px",
-            borderRadius: 8,
-            background: "#ffe0e0",
-            border: "1px solid #d8b2b2",
-            fontSize: 16,
-            cursor: "pointer",
-            fontWeight: "bold",
-          }}
-        >
-          🐛 Test API Data
-        </button>
+
       </div>
 
       {showAdd && (
@@ -737,20 +1002,21 @@ export default function ImprovedMorningTab() {
                 {
                   id: Date.now() + Math.random() + "",
                   name: newName.trim(),
-                  lat: 60.7249,
-                  lng: 9.0365,
+                  lat: 59.91, // Elghytta coordinates
+                  lng: 10.75,
                   target: 40,
                   offset: 0,
                   dayOffset: 0,
                   nightOffset: 0,
-                  baseTemp: 0,
+                  baseTemp: 3,
                   dataTable: [],
                   accumulatedDG: 0,
                   isRunning: false,
-                  startTime: undefined, // Settes når loggeren starter
+                  startTime: customStartTime ? new Date(customStartTime) : undefined,
                 },
               ]);
               setNewName("");
+              setCustomStartTime("");
               setShowAdd(false);
             }
           }}
@@ -776,6 +1042,18 @@ export default function ImprovedMorningTab() {
             }}
             required
           />
+          <input
+            type="datetime-local"
+            value={customStartTime}
+            onChange={(e) => setCustomStartTime(e.target.value)}
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #bbb",
+              fontSize: 16,
+              width: 250,
+            }}
+          />
           <button
             type="submit"
             style={{
@@ -795,6 +1073,7 @@ export default function ImprovedMorningTab() {
             onClick={() => {
               setShowAdd(false);
               setNewName("");
+              setCustomStartTime("");
             }}
             style={{
               padding: "10px 20px",
@@ -810,48 +1089,7 @@ export default function ImprovedMorningTab() {
         </form>
       )}
 
-      {/* Debug section */}
-      {debugData && (
-        <div style={{ 
-          marginBottom: 20, 
-          padding: 16, 
-          backgroundColor: '#f0f0f0', 
-          borderRadius: 8,
-          border: '1px solid #ccc'
-        }}>
-          <h3 style={{ marginBottom: 12, fontSize: 16, fontWeight: 'bold' }}>🐛 Debug: API Data Test</h3>
-          <textarea
-            value={debugData}
-            readOnly
-            style={{
-              width: '100%',
-              minHeight: '200px',
-              padding: 12,
-              borderRadius: 6,
-              border: '1px solid #ccc',
-              fontFamily: 'monospace',
-              fontSize: 12,
-              backgroundColor: '#fff',
-              resize: 'vertical'
-            }}
-          />
-          <button
-            onClick={() => setDebugData("")}
-            style={{
-              marginTop: 8,
-              padding: '8px 16px',
-              borderRadius: 6,
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 14
-            }}
-          >
-            Clear Debug
-          </button>
-        </div>
-      )}
+
 
       {loggers.length === 0 && (
         <div
@@ -900,6 +1138,8 @@ function LoggerCard({
   // Opprett dataTable når loggeren starter (startTime settes) eller når dataTable mangler
   useEffect(() => {
     console.log(`🔍 [useEffect] Checking logger ${logger.name}: startTime=${logger.startTime}, dataTable.length=${logger.dataTable?.length || 0}`);
+    console.log(`🔍 [useEffect] Full logger object:`, logger);
+    
     if (!logger.startTime) {
       console.log(`❌ [useEffect] No startTime for logger ${logger.name}, skipping`);
       return; // Kun hvis vi har startTime
@@ -930,10 +1170,20 @@ function LoggerCard({
         console.log(`📅 Logger started: ${startDate.toISOString().slice(0, 10)}, Today: ${today.toISOString().slice(0, 10)}, Is new logger: ${isNewLogger}`);
         
         if (isNewLogger) {
-          // For new loggers (started today), only use forecast data
-          console.log('🆕 New logger - using only forecast data');
+          // For new loggers (started today), combine today's data + forecast data
+          console.log('🆕 New logger - combining today\'s data + forecast data');
+          
+          // Get today's data (including past hours)
+          const todayData = await fetchTodayData(logger.lat, logger.lng);
+          console.log('Today\'s data for new logger:', todayData.length, 'points');
+          
+          // Get forecast data (future hours)
           const forecast = await fetchForecast(logger.lat, logger.lng);
-          console.log('Creating dataTable for new logger:', forecast.length, 'forecast points');
+          console.log('Forecast data for new logger:', forecast.length, 'points');
+          
+          // Combine today's data and forecast data
+          const allData = [...todayData, ...forecast];
+          console.log('Combined data for new logger:', allData.length, 'total points');
           
           // Calculate estimated finish time
           let cumDG = 0;
@@ -941,12 +1191,20 @@ function LoggerCard({
           let targetReached = false;
           let hoursAfterTarget = 0;
           
-          for (const point of forecast) {
+          console.log(`🔍 [createDataTableOnStart] Starting DG calculation for target: ${logger.target} DG`);
+          console.log(`🔍 [createDataTableOnStart] baseTemp: ${logger.baseTemp}, dayOffset: ${logger.dayOffset}, nightOffset: ${logger.nightOffset}`);
+          
+          for (const point of allData) {
             if (point.time >= logger.startTime!) {
               const periodOffset = getOffsetForTime(point.time, logger.dayOffset, logger.nightOffset);
               const adjustedTemp = point.temp + periodOffset;
               const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+              const oldCumDG = cumDG;
               cumDG += dgHour / 24;
+              
+              if (point.time.getTime() % (60 * 60 * 1000) === 0) { // Log every hour
+                console.log(`🔍 [createDataTableOnStart] ${point.time.toLocaleString()}: temp=${point.temp}°C, offset=${periodOffset}°C, adjusted=${adjustedTemp}°C, dgHour=${dgHour.toFixed(3)} DG, cumDG: ${oldCumDG.toFixed(3)} → ${cumDG.toFixed(3)} DG`);
+              }
             }
             
             if (!targetReached && cumDG >= logger.target) {
@@ -961,19 +1219,41 @@ function LoggerCard({
             }
           }
           
-          // Create dataTable with forecast data only
-          forecast.forEach(point => {
+          console.log(`🔍 [createDataTableOnStart] Final cumDG: ${cumDG.toFixed(3)} DG, target: ${logger.target} DG, targetReached: ${targetReached}`);
+          
+          // Create dataTable with combined data
+          allData.forEach(point => {
             const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
             
             if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
               return;
             }
             
+            // Determine if this is historical data, today's data, or forecast data
+            const now = new Date();
+            const currentHour = new Date(now);
+            currentHour.setMinutes(0, 0, 0);
+            const pointDate = new Date(point.time);
+            pointDate.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const isHistorical = pointDate.getTime() < today.getTime();
+            const isTodayData = pointDate.getTime() === today.getTime() && point.time <= currentHour;
+            const isForecast = pointDate.getTime() === today.getTime() && point.time > currentHour;
+            
+            // For new loggers, we want to show forecast data for future hours to enable DG estimation
+            // So we'll use tempEst for future hours and tempLogg for past/current hours
+            // But we need to be more generous with what we consider "forecast" data
+            const isFutureHour = point.time > currentHour;
+            
+            // Ensure runtime is valid for DG calculation
+            const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
+            
             dataTable.push({
               timestamp: floorToHour(point.time),
-              runtime: Math.max(0, runtime),
-              tempEst: point.temp,
-              tempLogg: null // Will be updated when we get historical data
+              runtime: validRuntime,
+              tempEst: isFutureHour ? point.temp : null, // All future hours have tempEst for DG estimation
+              tempLogg: (isHistorical || isTodayData) ? point.temp : null // Historical and today's data has tempLogg
             });
           });
           
@@ -983,6 +1263,8 @@ function LoggerCard({
           console.log('📊 Existing logger - combining historical + forecast data');
           
           // Get historical data from start time to yesterday
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
           const yesterday = new Date(today);
           yesterday.setDate(yesterday.getDate() - 1);
           yesterday.setHours(23, 59, 59, 999);
@@ -1004,12 +1286,20 @@ function LoggerCard({
           let targetReached = false;
           let hoursAfterTarget = 0;
           
+          console.log(`🔍 [createDataTableOnStart] Starting DG calculation for target: ${logger.target} DG`);
+          console.log(`🔍 [createDataTableOnStart] baseTemp: ${logger.baseTemp}, dayOffset: ${logger.dayOffset}, nightOffset: ${logger.nightOffset}`);
+          
           for (const point of allData) {
             if (point.time >= logger.startTime!) {
               const periodOffset = getOffsetForTime(point.time, logger.dayOffset, logger.nightOffset);
               const adjustedTemp = point.temp + periodOffset;
               const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+              const oldCumDG = cumDG;
               cumDG += dgHour / 24;
+              
+              if (point.time.getTime() % (60 * 60 * 1000) === 0) { // Log every hour
+                console.log(`🔍 [createDataTableOnStart] ${point.time.toLocaleString()}: temp=${point.temp}°C, offset=${periodOffset}°C, adjusted=${adjustedTemp}°C, dgHour=${dgHour.toFixed(3)} DG, cumDG: ${oldCumDG.toFixed(3)} → ${cumDG.toFixed(3)} DG`);
+              }
             }
             
             if (!targetReached && cumDG >= logger.target) {
@@ -1024,6 +1314,8 @@ function LoggerCard({
             }
           }
           
+          console.log(`🔍 [createDataTableOnStart] Final cumDG: ${cumDG.toFixed(3)} DG, target: ${logger.target} DG, targetReached: ${targetReached}`);
+          
           // Create dataTable with combined data
           allData.forEach(point => {
             const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
@@ -1034,11 +1326,20 @@ function LoggerCard({
             
             // Determine if this is historical or forecast data
             const isHistorical = point.time <= yesterday;
+            const now = new Date();
+            const currentHour = new Date(now);
+            currentHour.setMinutes(0, 0, 0);
+            const isFutureHour = point.time > currentHour;
+            
+            // For historical data, we need to handle runtime differently
+            // Historical data should show tempLogg for past hours, tempEst for future hours
+            // But we need to ensure runtime is valid for DG calculation
+            const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
             
             dataTable.push({
               timestamp: floorToHour(point.time),
-              runtime: Math.max(0, runtime),
-              tempEst: isHistorical ? null : point.temp, // Only forecast data has tempEst
+              runtime: validRuntime,
+              tempEst: isFutureHour ? point.temp : null, // All future hours have tempEst for DG estimation
               tempLogg: isHistorical ? point.temp : null // Historical data has tempLogg
             });
           });
@@ -1046,11 +1347,30 @@ function LoggerCard({
           setEstimatedFinish(estimatedFinish);
         }
         
+        // Calculate total accumulated DG from historical data
+        let totalAccumulatedDG = 0;
+        for (const point of dataTable) {
+          if (point.tempLogg !== null && point.timestamp >= logger.startTime!) {
+            const periodOffset = getOffsetForTime(point.timestamp, logger.dayOffset, logger.nightOffset);
+            const adjustedTemp = point.tempLogg + periodOffset;
+            const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+            totalAccumulatedDG += dgHour / 24;
+          }
+        }
+        
+        console.log(`📊 [createDataTableOnStart] Total accumulated DG from historical data: ${totalAccumulatedDG.toFixed(2)}`);
+        
+        // Update logger with new dataTable and accumulated DG
+        const updatedLogger = {
+          ...logger,
+          dataTable: dataTable,
+          accumulatedDG: totalAccumulatedDG
+        };
+        
         // Update logger with new dataTable
-        setLoggers(loggers => loggers.map(l => l.id === logger.id ? {
-          ...l,
-          dataTable: dataTable
-        } : l));
+        setLoggers(loggers => loggers.map(l => l.id === logger.id ? updatedLogger : l));
+        
+        console.log(`✅ [createDataTableOnStart] Successfully created dataTable with ${dataTable.length} points for logger ${logger.name}`);
         
       } catch (err) {
         console.error("Feil ved opprettelse av dataTable ved start:", err);
@@ -1132,7 +1452,7 @@ function LoggerCard({
       const interval = setInterval(updateRealLog, 300000); // Oppdater hvert 5. minutt i stedet for hvert minutt
       return () => clearInterval(interval);
     }
-  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime]);
+  }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime, updateRealTemperatureData]);
 
   // Akselerert tid simulator
   useEffect(() => {
@@ -1215,12 +1535,25 @@ function LoggerCard({
         <button 
           onClick={() => {
             const newIsRunning = !logger.isRunning;
-            const newStartTime = !logger.isRunning ? (() => {
-              const startTime = new Date();
-              startTime.setMinutes(0, 0, 0); // Start fra nåværende hele time (kl 13:00)
-              console.log(`🚀 [Start Button] Setting startTime for ${logger.name}: ${startTime.toLocaleString()}`);
-              return startTime;
-            })() : logger.startTime;
+            let newStartTime: Date | undefined;
+            
+            if (!logger.isRunning) {
+              // Starting the logger
+              if (logger.startTime) {
+                // Use existing startTime if it's already set
+                newStartTime = logger.startTime;
+                console.log(`🚀 [Start Button] Using existing startTime for ${logger.name}: ${newStartTime.toLocaleString()}`);
+              } else {
+                // Set to current hour if no startTime
+                const startTime = new Date();
+                startTime.setMinutes(0, 0, 0);
+                newStartTime = startTime;
+                console.log(`🚀 [Start Button] Setting new startTime for ${logger.name}: ${startTime.toLocaleString()}`);
+              }
+            } else {
+              // Pausing the logger, keep existing startTime
+              newStartTime = logger.startTime;
+            }
             
             console.log(`🚀 [Start Button] ${logger.name}: isRunning=${newIsRunning}, startTime=${newStartTime?.toLocaleString() || 'null'}`);
             
@@ -1242,6 +1575,98 @@ function LoggerCard({
         >
           {logger.isRunning ? '⏸️ Pause' : '▶️ Start'}
         </button>
+
+        {/* Debug: Custom Start Time */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '12px' }}>
+          <span style={{ color: '#666' }}>Debug Start:</span>
+          <input
+            type="date"
+            value={(() => {
+              if (!logger.startTime) return '';
+              const date = new Date(logger.startTime);
+              return date.toISOString().split('T')[0];
+            })()}
+            onChange={(e) => {
+              if (e.target.value) {
+                const newDate = new Date(e.target.value);
+                newDate.setHours(12, 0, 0, 0); // Sett til kl 12:00
+                console.log(`🔧 [Debug] Setting custom start date for ${logger.name}: ${newDate.toLocaleString()}`);
+                setLoggers(loggers => loggers.map(x => x.id === logger.id ? { ...x, startTime: newDate } : x));
+              }
+            }}
+            style={{
+              fontSize: '11px',
+              padding: '2px 6px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              width: '100px'
+            }}
+          />
+          <input
+            type="time"
+            value={(() => {
+              if (!logger.startTime) return '12:00';
+              const date = new Date(logger.startTime);
+              return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            })()}
+            onChange={(e) => {
+              if (e.target.value && logger.startTime) {
+                const [hours, minutes] = e.target.value.split(':').map(Number);
+                const newStartTime = new Date(logger.startTime);
+                newStartTime.setHours(hours, minutes, 0, 0);
+                console.log(`🔧 [Debug] Setting custom start time for ${logger.name}: ${newStartTime.toLocaleString()}`);
+                setLoggers(loggers => loggers.map(x => x.id === logger.id ? { ...x, startTime: newStartTime } : x));
+              }
+            }}
+            style={{
+              fontSize: '11px',
+              padding: '2px 6px',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              width: '70px'
+            }}
+          />
+          <button
+            onClick={() => {
+              // Reset to current time
+              const now = new Date();
+              now.setMinutes(0, 0, 0);
+              console.log(`🔧 [Debug] Resetting start time to current time for ${logger.name}: ${now.toLocaleString()}`);
+              setLoggers(loggers => loggers.map(x => x.id === logger.id ? { ...x, startTime: now } : x));
+            }}
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              background: '#f0f0f0',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Reset
+          </button>
+          <button
+            onClick={async () => {
+              if (logger.startTime) {
+                console.log(`🔄 [Debug] Regenerating dataTable for ${logger.name} with start time: ${logger.startTime.toLocaleString()}`);
+                // Trigger regeneration of dataTable
+                setLoggers(loggers => loggers.map(x => x.id === logger.id ? { ...x, dataTable: [] } : x));
+                // The useEffect will automatically regenerate the dataTable
+              }
+            }}
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              background: '#e0f0ff',
+              border: '1px solid #b2d8ff',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+            title="Regenerate dataTable with new start time"
+          >
+            🔄
+          </button>
+        </div>
 
         <label style={{ fontSize: 15, display: 'flex', alignItems: 'center' }}>
           Target DG:
@@ -1367,6 +1792,8 @@ function LoggerCard({
         </span>
       </div>
 
+
+
       {/* Plot */}
       <div
         style={{
@@ -1389,6 +1816,33 @@ function LoggerCard({
               startTime={logger.startTime ? logger.startTime.toLocaleString() : 'null'},
               isRunning={logger.isRunning.toString()}
             </small>
+            <br />
+            <button 
+              onClick={() => {
+                console.log('🔍 Full logger object:', logger);
+                console.log('🔍 dataTable:', logger.dataTable);
+                console.log('🔍 startTime:', logger.startTime);
+                console.log('🔍 Triggering createDataTableOnStart manually...');
+                
+                // Manually trigger the dataTable creation
+                if (logger.startTime) {
+                  console.log('🔍 Logger has startTime, checking why dataTable is empty...');
+                  console.log('🔍 Logger lat/lng:', logger.lat, logger.lng);
+                  console.log('🔍 Logger target:', logger.target);
+                }
+              }}
+              style={{
+                marginTop: 8,
+                padding: '4px 8px',
+                fontSize: 11,
+                background: '#f0f0f0',
+                border: '1px solid #ccc',
+                borderRadius: 4,
+                cursor: 'pointer'
+              }}
+            >
+              Debug Logger
+            </button>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
@@ -1400,10 +1854,29 @@ function LoggerCard({
                 }
 
                 // Beregn akkumulerte DG for hver tidspunkt
+                // Start alltid på 0 DG
                 let cumEstimatDG = 0;
                 let cumReellDG = 0;
                 
-                const chartData = logger.dataTable.map(point => {
+                // Først beregn total historisk DG for å vite hvor forecast skal starte
+                let totalHistoricalDG = 0;
+                for (const point of logger.dataTable) {
+                  if (point.tempLogg !== null && point.timestamp >= logger.startTime!) {
+                    const periodOffset = getOffsetForTime(point.timestamp, logger.dayOffset, logger.nightOffset);
+                    const adjustedTemp = point.tempLogg + periodOffset;
+                    const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
+                    totalHistoricalDG += dgHour / 24;
+                  }
+                }
+                
+                console.log(`📊 Total historical DG: ${totalHistoricalDG.toFixed(2)}`);
+                
+                // Filter out points before startTime to ensure chart starts at the right point
+                const filteredDataTable = logger.dataTable.filter(point => 
+                  logger.startTime ? point.timestamp >= logger.startTime : true
+                );
+                
+                const chartData = filteredDataTable.map(point => {
                   try {
                     // Konverter timestamp til Date hvis det er en streng
                     const timestamp = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
@@ -1412,12 +1885,14 @@ function LoggerCard({
                     const runtime = Number(point.runtime) || 0;
                     
                     // Beregn estimat DG hvis vi har tempEst
-                    if (point.tempEst !== null && logger.startTime && runtime > 0) {
+                    if (point.tempEst !== null && logger.startTime) {
                       const periodOffset = getOffsetForTime(timestamp, logger.dayOffset, logger.nightOffset);
                       const adjustedTemp = point.tempEst + periodOffset;
                       const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-                      // Legg til DG for denne timen
-                      cumEstimatDG += dgHour / 24;
+                      // Legg til DG for denne timen (kun hvis tidspunktet er etter start)
+                      if (timestamp >= logger.startTime) {
+                        cumEstimatDG += dgHour / 24;
+                      }
                     }
 
                     // Beregn reell DG hvis vi har tempLogg
@@ -1425,25 +1900,26 @@ function LoggerCard({
                       const periodOffset = getOffsetForTime(timestamp, logger.dayOffset, logger.nightOffset);
                       const adjustedTemp = point.tempLogg + periodOffset;
                       const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-                      // Legg til DG for denne timen (kun hvis runtime > 0)
-                      if (runtime > 0) {
+                      // Legg til DG for denne timen (kun hvis tidspunktet er etter start)
+                      if (timestamp >= logger.startTime) {
                         cumReellDG += dgHour / 24;
                       }
                     }
 
                     return {
-                      time: timestamp,
-                      Estimat: runtime > 0 ? cumEstimatDG : null,
-                      // Kun vis reell DG hvis vi faktisk har tempLogg data
-                      Reell: (runtime > 0 && point.tempLogg !== null) ? cumReellDG : null
+                      timestamp: timestamp,
+                      // Vis forecast for alle fremtidige timer (fra nåværende time og framover)
+                      Estimat: (logger.startTime && timestamp >= logger.startTime && point.tempEst !== null) ? (totalHistoricalDG + cumEstimatDG) : null,
+                      // Kun vis reell DG hvis vi faktisk har tempLogg data og tidspunktet er etter start
+                      Reell: (logger.startTime && timestamp >= logger.startTime && point.tempLogg !== null) ? cumReellDG : null
                     };
                   } catch (error) {
                     console.error('Error processing chart data point:', error, point);
-                    return {
-                      time: new Date(),
-                      Estimat: null,
-                      Reell: null
-                    };
+                                      return {
+                    timestamp: new Date(),
+                    Estimat: null,
+                    Reell: null
+                  };
                   }
                 });
 
@@ -1457,6 +1933,13 @@ function LoggerCard({
                   console.log('📊 Reell DG punkter:', reellDataPoints.slice(0, 3));
                 }
                 
+                // Debug: Sjekk estimat DG data
+                const estimatDataPoints = chartData.filter(point => point.Estimat !== null);
+                console.log(`🔮 Estimat DG datapunkter: ${estimatDataPoints.length}`);
+                if (estimatDataPoints.length > 0) {
+                  console.log('🔮 Estimat DG punkter:', estimatDataPoints.slice(0, 3));
+                }
+                
                 // Debug: Sjekk dataTable for tempLogg data
                 const tempLoggData = logger.dataTable.filter(point => point.tempLogg !== null);
                 console.log(`🌡️ DataTable tempLogg datapunkter: ${tempLoggData.length}`);
@@ -1468,27 +1951,55 @@ function LoggerCard({
                   })));
                 }
                 
+                // Debug: Sjekk dataTable for tempEst data
+                const tempEstData = logger.dataTable.filter(point => point.tempEst !== null);
+                console.log(`🌡️ DataTable tempEst datapunkter: ${tempEstData.length}`);
+                if (tempEstData.length > 0) {
+                  console.log('🌡️ TempEst punkter:', tempEstData.slice(0, 3).map(p => ({
+                    timestamp: p.timestamp,
+                    tempEst: p.tempEst,
+                    runtime: p.runtime
+                  })));
+                }
+                
                 // Debug: Sjekk runtime verdier
                 const runtimeData = logger.dataTable.slice(0, 5).map(p => ({
                   timestamp: p.timestamp,
                   runtime: p.runtime,
-                  tempEst: p.tempEst
+                  tempEst: p.tempEst,
+                  tempLogg: p.tempLogg
                 }));
                 console.log('🔍 Runtime debugging:', runtimeData);
+                
+                // Debug: Sjekk om chartData har gyldige verdier
+                const validChartData = chartData.filter(point => 
+                  point.Estimat !== null || point.Reell !== null
+                );
+                console.log(`✅ Gyldige chart datapunkter: ${validChartData.length}`);
+                
+                // Hvis vi ikke har gyldige data, returner en fallback
+                if (validChartData.length === 0) {
+                  console.warn('⚠️ Ingen gyldige chart data, returnerer fallback');
+                  return [{
+                    timestamp: new Date(),
+                    Estimat: 0,
+                    Reell: 0
+                  }];
+                }
                 
                 return chartData;
               })()}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
-                dataKey="time"
+                dataKey="timestamp"
                 tickFormatter={fmtTick}
                 tick={{ fontSize: 12 }}
               />
               <YAxis />
               <Tooltip
-                labelFormatter={(v) =>
-                  new Date(v).toLocaleString("no-NO", {
+                labelFormatter={(timestamp) =>
+                  new Date(timestamp).toLocaleString("no-NO", {
                     weekday: "short",
                     hour: "2-digit",
                     minute: "2-digit",
