@@ -1217,13 +1217,30 @@ function LoggerCard({
               return;
             }
             
-            // Simple classification: past hours = historical, future hours = forecast
+            // Classification: past hours = historical, current hour and future = forecast
             const now = new Date();
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
-            const isHistorical = point.time <= currentHour;
-            const isForecast = point.time > currentHour;
+            // Treat current hour as forecast to avoid gaps
+            const isHistorical = point.time < currentHour;
+            const isForecast = point.time >= currentHour;
+            
+            // Special case: if this is the current hour, copy the temperature to both historical and forecast
+            // This ensures no gap between historical and forecast graphs
+            let tempLogg = null;
+            let tempEst = null;
+            
+            if (isHistorical) {
+              tempLogg = point.temp;
+            } else if (isForecast) {
+              tempEst = point.temp;
+            }
+            
+            // If this is the current hour, also set tempLogg so historical graph extends to this point
+            if (point.time.getTime() === currentHour.getTime()) {
+              tempLogg = point.temp;
+            }
             
             // Ensure runtime is valid for DG calculation
             const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
@@ -1231,8 +1248,8 @@ function LoggerCard({
             dataTable.push({
               timestamp: floorToHour(point.time),
               runtime: validRuntime,
-              tempEst: isForecast ? point.temp : null, // Future hours have tempEst for DG estimation
-              tempLogg: isHistorical ? point.temp : null // Historical and today's past hours have tempLogg
+              tempEst: tempEst,
+              tempLogg: tempLogg
             });
           });
           
@@ -1337,13 +1354,14 @@ function LoggerCard({
               return;
             }
             
-            // Simple classification: past hours = historical, future hours = forecast
+            // Classification: past hours = historical, current hour and future = forecast
             const now = new Date();
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
-            const isHistorical = point.time <= currentHour;
-            const isForecast = point.time > currentHour;
+            // Treat current hour as forecast to avoid gaps
+            const isHistorical = point.time < currentHour;
+            const isForecast = point.time >= currentHour;
             
             // Debug: log today's data points
             if (point.time.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)) {
@@ -1357,11 +1375,27 @@ function LoggerCard({
             // But we need to ensure runtime is valid for DG calculation
             const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
             
+            // Special case: if this is the current hour, copy the temperature to both historical and forecast
+            // This ensures no gap between historical and forecast graphs
+            let tempLogg = null;
+            let tempEst = null;
+            
+            if (isHistorical) {
+              tempLogg = point.temp;
+            } else if (isForecast) {
+              tempEst = point.temp;
+            }
+            
+            // If this is the current hour, also set tempLogg so historical graph extends to this point
+            if (point.time.getTime() === currentHour.getTime()) {
+              tempLogg = point.temp;
+            }
+            
             dataTable.push({
               timestamp: point.time, // Use exact time, not floorToHour
               runtime: validRuntime,
-              tempEst: isForecast ? point.temp : null, // Future hours have tempEst for DG estimation
-              tempLogg: isHistorical ? point.temp : null // Historical and today's past hours have tempLogg
+              tempEst: tempEst,
+              tempLogg: tempLogg
             });
             
             // Debug: log what was added
@@ -1380,7 +1414,16 @@ function LoggerCard({
             const periodOffset = getOffsetForTime(point.timestamp, logger.dayOffset, logger.nightOffset);
             const adjustedTemp = point.tempLogg + periodOffset;
             const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-            totalAccumulatedDG += dgHour / 24;
+            
+            // If this hour has both tempLogg and tempEst (current hour), divide by 2 to avoid double-counting
+            const isCurrentHour = point.tempEst !== null && point.tempLogg !== null;
+            const dgMultiplier = isCurrentHour ? 0.5 : 1.0;
+            
+            totalAccumulatedDG += (dgHour / 24) * dgMultiplier;
+            
+            if (isCurrentHour) {
+              console.log(`🔍 [DG Calculation] Current hour ${point.timestamp.toISOString()}: temp=${point.tempLogg}°C, dgHour=${dgHour.toFixed(3)}, divided by 2 to avoid double-counting`);
+            }
           }
         }
         
