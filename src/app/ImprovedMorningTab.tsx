@@ -109,8 +109,9 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error loading loggers:', error);
-      return [];
+      console.error('❌ Error loading loggers from database:', error);
+      console.log('⚠️ Database table might not exist yet. Using localStorage fallback...');
+      return loadLoggersFromLocalStorage();
     }
 
     console.log('✅ Loaded loggers from database:', data?.length || 0, 'loggers');
@@ -142,8 +143,9 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
         startTime: dbLogger.start_time ? new Date(dbLogger.start_time as string) : undefined,
       }));
   } catch (error) {
-    console.error('Error loading loggers:', error);
-    return [];
+    console.error('❌ Error loading loggers from database:', error);
+    console.log('⚠️ Database operation failed. Using localStorage fallback...');
+    return loadLoggersFromLocalStorage();
   }
 }
 
@@ -171,14 +173,36 @@ async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
       });
 
     if (error) {
-      console.error('❌ Error saving logger:', error);
-      return false;
+      console.error('❌ Error saving logger to database:', error);
+      console.log('⚠️ Database table might not exist yet. Using localStorage fallback...');
+      // Fallback to localStorage when database fails
+      try {
+        const currentLoggers = loadLoggersFromLocalStorage();
+        const updatedLoggers = currentLoggers.map(l => l.id === logger.id ? logger : l);
+        saveLoggersToLocalStorage(updatedLoggers);
+        console.log('✅ Logger saved to localStorage as fallback:', logger.name);
+        return true;
+      } catch (localStorageError) {
+        console.error('❌ Error saving to localStorage fallback:', localStorageError);
+        return false;
+      }
     }
-    console.log('✅ Successfully saved logger:', logger.name);
+    console.log('✅ Successfully saved logger to database:', logger.name);
     return true;
   } catch (error) {
-    console.error('❌ Error saving logger:', error);
-    return false;
+    console.error('❌ Error saving logger to database:', error);
+    console.log('⚠️ Database operation failed. Using localStorage fallback...');
+    // Fallback to localStorage when database fails
+    try {
+      const currentLoggers = loadLoggersFromLocalStorage();
+      const updatedLoggers = currentLoggers.map(l => l.id === logger.id ? logger : l);
+      saveLoggersToLocalStorage(updatedLoggers);
+      console.log('✅ Logger saved to localStorage as fallback:', logger.name);
+      return true;
+    } catch (localStorageError) {
+      console.error('❌ Error saving to localStorage fallback:', localStorageError);
+      return false;
+    }
   }
 }
 

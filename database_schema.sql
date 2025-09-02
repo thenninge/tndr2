@@ -1,71 +1,28 @@
--- Create morning_loggers table for storing mørningsloggers
+-- Create morning_loggers table for storing logger data
 CREATE TABLE IF NOT EXISTS morning_loggers (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   lat DOUBLE PRECISION NOT NULL,
   lng DOUBLE PRECISION NOT NULL,
   target INTEGER NOT NULL DEFAULT 40,
-  temp_offset INTEGER NOT NULL DEFAULT 0,
-  day_offset INTEGER NOT NULL DEFAULT 0,
-  night_offset INTEGER NOT NULL DEFAULT 0,
-  base_temp INTEGER NOT NULL DEFAULT 0,
-  data_table JSONB DEFAULT '[]'::jsonb,
-  accumulated_dg DOUBLE PRECISION DEFAULT 0,
+  temp_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
+  day_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
+  night_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
+  base_temp DOUBLE PRECISION NOT NULL DEFAULT 3,
+  data_table JSONB,
+  accumulated_dg DOUBLE PRECISION NOT NULL DEFAULT 0,
   last_fetched TIMESTAMP WITH TIME ZONE,
-  is_running BOOLEAN DEFAULT false,
+  is_running BOOLEAN NOT NULL DEFAULT false,
   start_time TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create maintenance_tasks table for storing vedlikeholdsoppgaver
-CREATE TABLE IF NOT EXISTS maintenance_tasks (
-  id TEXT PRIMARY KEY,
-  post_id INTEGER NOT NULL,
-  description TEXT NOT NULL,
-  tags TEXT[] DEFAULT '{}',
-  priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in-progress', 'completed')),
-  assigned_to TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  completed_at TIMESTAMP WITH TIME ZONE,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create global settings table for tracking last real update
-CREATE TABLE IF NOT EXISTS global_settings (
-  id TEXT PRIMARY KEY DEFAULT 'default',
-  last_real_update TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Insert default global settings
-INSERT INTO global_settings (id, last_real_update) 
-VALUES ('default', NOW()) 
-ON CONFLICT (id) DO NOTHING;
-
--- Create indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_morning_loggers_created_at ON morning_loggers(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_morning_loggers_is_running ON morning_loggers(is_running);
-CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_post_id ON maintenance_tasks(post_id);
-CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_status ON maintenance_tasks(status);
-CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_priority ON maintenance_tasks(priority);
-CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_created_at ON maintenance_tasks(created_at DESC);
-
 -- Enable Row Level Security (RLS)
 ALTER TABLE morning_loggers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE maintenance_tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE global_settings ENABLE ROW LEVEL SECURITY;
 
--- Create policies to allow all operations (for now - you can restrict this later)
+-- Create policy to allow all operations
 CREATE POLICY "Allow all operations on morning_loggers" ON morning_loggers
-  FOR ALL USING (true);
-
-CREATE POLICY "Allow all operations on maintenance_tasks" ON maintenance_tasks
-  FOR ALL USING (true);
-
-CREATE POLICY "Allow all operations on global_settings" ON global_settings
   FOR ALL USING (true);
 
 -- Create function to automatically update updated_at timestamp
@@ -77,18 +34,14 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Create triggers to automatically update updated_at
+-- Create trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS update_morning_loggers_updated_at ON morning_loggers;
 CREATE TRIGGER update_morning_loggers_updated_at 
   BEFORE UPDATE ON morning_loggers 
   FOR EACH ROW 
   EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_maintenance_tasks_updated_at 
-  BEFORE UPDATE ON maintenance_tasks 
-  FOR EACH ROW 
-  EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_global_settings_updated_at 
-  BEFORE UPDATE ON global_settings 
-  FOR EACH ROW 
-  EXECUTE FUNCTION update_updated_at_column();
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_morning_loggers_is_running ON morning_loggers(is_running);
+CREATE INDEX IF NOT EXISTS idx_morning_loggers_start_time ON morning_loggers(start_time);
+CREATE INDEX IF NOT EXISTS idx_morning_loggers_created_at ON morning_loggers(created_at);
