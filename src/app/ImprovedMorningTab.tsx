@@ -1679,88 +1679,9 @@ function LoggerCard({
               width: '70px'
             }}
           />
-          <button
-            onClick={() => {
-              // Reset to current time
-              const now = new Date();
-              now.setMinutes(0, 0, 0);
-              console.log(`🔧 [Debug] Resetting start time to current time for ${logger.name}: ${now.toLocaleString()}`);
-              setLoggers(loggers => loggers.map(x => x.id === logger.id ? { ...x, startTime: now } : x));
-            }}
-            style={{
-              fontSize: '10px',
-              padding: '2px 6px',
-              background: '#f0f0f0',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Reset
-          </button>
-          <button
-            onClick={async () => {
-              if (logger.startTime) {
-                console.log(`🔄 [Debug] Regenerating dataTable for ${logger.name} with start time: ${logger.startTime.toLocaleString()}`);
-                // Trigger regeneration of dataTable
-                setLoggers(loggers => loggers.map(x => x.id === logger.id ? { ...x, dataTable: [] } : x));
-                // The useEffect will automatically regenerate the dataTable
-              }
-            }}
-            style={{
-              fontSize: '10px',
-              padding: '2px 6px',
-              background: '#e0f0ff',
-              border: '1px solid #b2d8ff',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-            title="Regenerate dataTable with new start time"
-          >
-            🔄
-          </button>
-          <button
-            onClick={async () => {
-              if (logger.startTime) {
-                console.log(`🧪 [Debug] Testing API calls for ${logger.name}`);
-                try {
-                  // Test historical data (but not for today's date)
-                  const yesterday = new Date();
-                  yesterday.setDate(yesterday.getDate() - 1);
-                  yesterday.setHours(23, 59, 59, 999);
-                  
-                  const historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime, yesterday);
-                  console.log(`📊 [API Test] Historical data: ${historicalData.length} points`);
-                  console.log(`📊 [API Test] Sample historical:`, historicalData.slice(0, 3).map(p => ({
-                    time: p.time.toISOString(),
-                    temp: p.temp
-                  })));
-                  
-                  // Test forecast data
-                  const forecastData = await fetchForecast(logger.lat, logger.lng);
-                  console.log(`🔮 [API Test] Forecast data: ${forecastData.length} points`);
-                  console.log(`🔮 [API Test] Sample forecast:`, forecastData.slice(0, 3).map(p => ({
-                    time: p.time.toISOString(),
-                    temp: p.temp
-                  })));
-                } catch (error) {
-                  console.error('❌ [API Test] Error:', error);
-                }
-              }
-            }}
-            style={{
-              fontSize: '10px',
-              padding: '2px 6px',
-              background: '#fff3cd',
-              border: '1px solid #ffeaa7',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              marginLeft: '4px'
-            }}
-            title="Test API calls directly"
-          >
-            🧪
-          </button>
+
+
+
 
         </div>
 
