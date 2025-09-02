@@ -191,7 +191,7 @@ export default function PostvaerTab() {
                 <tr key={h.time}>
                   <td style={{ padding: 4 }}>{new Date(h.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</td>
                   <td style={{ padding: 4 }}>{h.temp}°C</td>
-                  <td style={{ padding: 4 }}>{h.windSpeed}</td>
+                  <td style={{ padding: 4 }}>{(h.windSpeed / 3.6).toFixed(1)}</td>
                   <td style={{ padding: 4 }}><WindArrow deg={h.windDir} /> {windDirectionText(h.windDir)}</td>
                   <td style={{ padding: 4 }}>{weatherIcon(h.weatherCode)}</td>
                   <td style={{ padding: 4 }}>{h.precipitation}</td>
