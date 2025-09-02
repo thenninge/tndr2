@@ -1324,8 +1324,8 @@ function LoggerCard({
           allData.forEach((point, index) => {
             const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
             
-            // Stop adding data 4 hours after target DG is reached
-            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 4 * 60 * 60 * 1000)) {
+            // Stop adding data 12 hours after target DG is reached
+            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
               console.log(`🔍 [DEBUG] Skipping point ${index}: ${point.time.toISOString()} - too far after target`);
               return;
             }
@@ -1458,7 +1458,7 @@ function LoggerCard({
             
             if (targetReached) {
               hoursAfterTarget++;
-              if (hoursAfterTarget >= 4) break; // Stop 4 hours after target instead of 12
+              if (hoursAfterTarget >= 12) break; // Stop 12 hours after target
             }
           }
           
@@ -1471,8 +1471,8 @@ function LoggerCard({
           allData.forEach((point, index) => {
             const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
             
-            // Stop adding data 4 hours after target DG is reached
-            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 4 * 60 * 60 * 1000)) {
+            // Stop adding data 12 hours after target DG is reached
+            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
               console.log(`🔍 [createDataTableOnStart] Skipping point ${index}: ${point.time.toISOString()} - too far after target`);
               return;
             }
@@ -1992,15 +1992,15 @@ function LoggerCard({
                 
                 console.log(`📊 Total historical DG: ${totalHistoricalDG.toFixed(2)}`);
                 
-                // Filter out points before startTime and after target DG (4 hours after estimatedFinish)
+                // Filter out points before startTime and after target DG (12 hours after estimatedFinish)
                 const filteredDataTable = logger.dataTable.filter(point => {
                   // Must be after start time
                   if (logger.startTime && point.timestamp < logger.startTime) {
                     return false;
                   }
                   
-                  // Don't show data after target DG is reached (4 hours after estimatedFinish)
-                  if (estimatedFinish && point.timestamp > new Date(estimatedFinish.getTime() + 4 * 60 * 60 * 1000)) {
+                  // Don't show data after target DG is reached (12 hours after estimatedFinish)
+                  if (estimatedFinish && point.timestamp > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
                     return false;
                   }
                   
