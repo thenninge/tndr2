@@ -432,9 +432,8 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
   });
 
   const nowHour = floorToHour(new Date());
-  // Start forecast from the next hour after current time to avoid gaps
+  // Start forecast from the CURRENT hour to avoid gaps
   const forecastStartHour = new Date(nowHour);
-  forecastStartHour.setHours(forecastStartHour.getHours() + 1, 0, 0, 0);
   return raw.filter((p) => p.time >= forecastStartHour);
 }
 
