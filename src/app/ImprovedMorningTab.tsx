@@ -1318,9 +1318,10 @@ function LoggerCard({
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
-            // CORRECT LOGIC: past hours = historical, current hour and future = forecast
-            const isHistorical = point.time < currentHour;
-            const isForecast = point.time >= currentHour;
+            // CRITICAL FIX: For today's data, only past hours are historical
+            const isToday = point.time.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
+            const isHistorical = isToday ? point.time < currentHour : point.time < now;
+            const isForecast = isToday ? point.time >= currentHour : point.time >= now;
             
             // Set temperatures correctly
             let tempLogg = null;
@@ -1449,9 +1450,10 @@ function LoggerCard({
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
-            // CORRECT LOGIC: past hours = historical, current hour and future = forecast
-            const isHistorical = point.time < currentHour;
-            const isForecast = point.time >= currentHour;
+            // CRITICAL FIX: For today's data, only past hours are historical
+            const isToday = point.time.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
+            const isHistorical = isToday ? point.time < currentHour : point.time < now;
+            const isForecast = isToday ? point.time >= currentHour : point.time >= now;
             
             // Debug: log today's data points
             if (point.time.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)) {
@@ -1476,7 +1478,7 @@ function LoggerCard({
             }
             
             dataTable.push({
-              timestamp: point.time, // Use exact time, not floorToHour
+              timestamp: floorToHour(point.time), // Use floorToHour for consistency
               runtime: validRuntime,
               tempEst: tempEst,
               tempLogg: tempLogg
