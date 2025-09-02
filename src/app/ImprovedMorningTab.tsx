@@ -1602,6 +1602,44 @@ function LoggerCard({
           >
             🔄
           </button>
+          <button
+            onClick={async () => {
+              if (logger.startTime) {
+                console.log(`🧪 [Debug] Testing API calls for ${logger.name}`);
+                try {
+                  // Test historical data
+                  const historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime, new Date());
+                  console.log(`📊 [API Test] Historical data: ${historicalData.length} points`);
+                  console.log(`📊 [API Test] Sample historical:`, historicalData.slice(0, 3).map(p => ({
+                    time: p.time.toISOString(),
+                    temp: p.temp
+                  })));
+                  
+                  // Test forecast data
+                  const forecastData = await fetchForecast(logger.lat, logger.lng);
+                  console.log(`🔮 [API Test] Forecast data: ${forecastData.length} points`);
+                  console.log(`🔮 [API Test] Sample forecast:`, forecastData.slice(0, 3).map(p => ({
+                    time: p.time.toISOString(),
+                    temp: p.temp
+                  })));
+                } catch (error) {
+                  console.error('❌ [API Test] Error:', error);
+                }
+              }
+            }}
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              background: '#fff3cd',
+              border: '1px solid #ffeaa7',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              marginLeft: '4px'
+            }}
+            title="Test API calls directly"
+          >
+            🧪
+          </button>
 
         </div>
 
@@ -1668,6 +1706,79 @@ function LoggerCard({
       </div>
 
 
+
+      {/* Debug Table - Show Historical and Forecast Data */}
+      {logger.startTime && (
+        <div style={{ 
+          marginBottom: 12, 
+          padding: '8px 12px', 
+          background: '#fff3cd', 
+          borderRadius: 6, 
+          border: '1px solid #ffeaa7',
+          fontSize: 12
+        }}>
+          <h4 style={{ margin: '0 0 8px 0', color: '#856404' }}>🔍 Debug: API Data</h4>
+          <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+              <thead style={{ position: 'sticky', top: 0, background: '#f8f9fa' }}>
+                <tr>
+                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Tidspunkt</th>
+                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Runtime</th>
+                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Historisk</th>
+                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Forecast</th>
+                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logger.dataTable && logger.dataTable.length > 0 ? (
+                  logger.dataTable.slice(0, 100).map((point, index) => {
+                    const isHistorical = point.tempLogg !== null;
+                    const isForecast = point.tempEst !== null;
+                    let status = '❌ Ingen';
+                    if (isHistorical && isForecast) status = '📊 Begge';
+                    else if (isHistorical) status = '🌡️ Historisk';
+                    else if (isForecast) status = '🔮 Estimert';
+                    
+                    return (
+                      <tr key={index} style={{ background: index % 2 === 0 ? '#f8f9fa' : 'white' }}>
+                        <td style={{ padding: '4px', border: '1px solid #ddd' }}>
+                          {point.timestamp.toLocaleString('nb-NO', { 
+                            month: 'numeric', 
+                            day: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </td>
+                        <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'center' }}>
+                          {point.runtime}h
+                        </td>
+                        <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'center' }}>
+                          {point.tempLogg !== null ? point.tempLogg.toFixed(1) : 'null'}
+                        </td>
+                        <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'center' }}>
+                          {point.tempEst !== null ? point.tempEst.toFixed(1) : 'null'}
+                        </td>
+                        <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'center' }}>
+                          {status}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '8px', textAlign: 'center', color: '#666' }}>
+                      Ingen data tilgjengelig. Debug: dataTable={logger.dataTable?.length || 0}, startTime={logger.startTime?.toLocaleString()}, isRunning={logger.isRunning}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: '8px', fontSize: '10px', color: '#666' }}>
+            Viser {Math.min(100, logger.dataTable?.length || 0)} av {logger.dataTable?.length || 0} datapunkter
+          </div>
+        </div>
+      )}
 
       {/* Estimated Finish and Current Time */}
       <div style={{ 
