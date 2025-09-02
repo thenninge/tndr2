@@ -2036,7 +2036,10 @@ function LoggerCard({
                       // Vis forecast for alle fremtidige timer (fra nåværende time og framover)
                       Estimat: (logger.startTime && timestamp >= logger.startTime && point.tempEst !== null) ? (totalHistoricalDG + cumEstimatDG) : null,
                       // Kun vis reell DG hvis vi faktisk har tempLogg data og tidspunktet er etter start
-                      Reell: (logger.startTime && timestamp >= logger.startTime && point.tempLogg !== null) ? cumReellDG : null
+                      Reell: (logger.startTime && timestamp >= logger.startTime && point.tempLogg !== null) ? cumReellDG : null,
+                      // Add temperature data for tooltip display
+                      tempLogg: point.tempLogg,
+                      tempEst: point.tempEst
                     };
                   } catch (error) {
                     console.error('Error processing chart data point:', error, point);
@@ -2130,7 +2133,20 @@ function LoggerCard({
                     minute: "2-digit",
                   })
                 }
-                formatter={(v: number, name: string) => [`${v.toFixed(1)} DG`, name]}
+                formatter={(v: number, name: string, props: any) => {
+                  const payload = props.payload;
+                  let tooltipText = `${v.toFixed(1)} DG`;
+                  
+                  // Add temperature information if available
+                  if (payload.tempLogg !== null) {
+                    tooltipText += ` | Historisk: ${payload.tempLogg.toFixed(1)}°C`;
+                  }
+                  if (payload.tempEst !== null) {
+                    tooltipText += ` | Estimert: ${payload.tempEst.toFixed(1)}°C`;
+                  }
+                  
+                  return [tooltipText, name];
+                }}
               />
               <Legend />
               <Line
