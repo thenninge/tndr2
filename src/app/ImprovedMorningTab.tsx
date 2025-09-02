@@ -150,20 +150,27 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
 }
 
 async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
+  console.log('🚀 saveLoggerToDatabase called with logger:', logger.name);
   try {
     console.log('💾 Saving logger to database:', logger.name);
     
     // Test database connection first
     console.log('🔍 Testing database connection...');
-    const { data: testData, error: testError } = await supabase
-      .from('morning_loggers')
-      .select('count')
-      .limit(1);
-    
-    if (testError) {
-      console.log('🔍 Database connection test failed:', testError);
-    } else {
-      console.log('🔍 Database connection test successful');
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from('morning_loggers')
+        .select('count')
+        .limit(1);
+      
+      if (testError) {
+        console.log('🔍 Database connection test failed:', testError);
+        console.log('🔍 Test error details:', JSON.stringify(testError, null, 2));
+      } else {
+        console.log('🔍 Database connection test successful');
+        console.log('🔍 Test data:', testData);
+      }
+    } catch (testCatchError) {
+      console.log('🔍 Database connection test threw exception:', testCatchError);
     }
     
     console.log('🔍 Attempting to save logger data:', {
