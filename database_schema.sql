@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS morning_loggers (
   name TEXT NOT NULL,
   lat DOUBLE PRECISION NOT NULL,
   lng DOUBLE PRECISION NOT NULL,
-  target INTEGER NOT NULL DEFAULT 40,
+  target DOUBLE PRECISION NOT NULL DEFAULT 40,
   temp_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
   day_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
   night_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -74,6 +74,40 @@ BEGIN
   -- Add updated_at column if it doesn't exist
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'updated_at') THEN
     ALTER TABLE morning_loggers ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+  END IF;
+END $$;
+
+-- Fix existing columns to use correct data types
+DO $$
+BEGIN
+  -- Change target column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'target' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN target TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change temp_offset column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'temp_offset' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN temp_offset TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change day_offset column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'day_offset' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN day_offset TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change night_offset column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'night_offset' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN night_offset TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change base_temp column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'base_temp' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN base_temp TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change accumulated_dg column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'accumulated_dg' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN accumulated_dg TYPE DOUBLE PRECISION;
   END IF;
 END $$;
 
