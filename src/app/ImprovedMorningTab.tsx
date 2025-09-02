@@ -180,7 +180,24 @@ async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
       accumulated_dg: logger.accumulatedDG,
       is_running: logger.isRunning
     });
-    const { error } = await supabase
+    
+    // Validate data before sending
+    if (!logger.id || !logger.name) {
+      console.error('❌ Invalid logger data - missing required fields');
+      return false;
+    }
+    
+    // Check if dataTable can be stringified
+    let dataTableJson: string;
+    try {
+      dataTableJson = JSON.stringify(logger.dataTable);
+      console.log('🔍 DataTable JSON stringified successfully, length:', dataTableJson.length);
+    } catch (stringifyError) {
+      console.error('❌ Error stringifying dataTable:', stringifyError);
+      return false;
+    }
+    console.log('🔍 Sending upsert request to Supabase...');
+    const result = await supabase
       .from('morning_loggers')
       .upsert({
         id: logger.id,
@@ -192,13 +209,16 @@ async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
         day_offset: logger.dayOffset,
         night_offset: logger.nightOffset,
         base_temp: logger.baseTemp,
-        data_table: JSON.stringify(logger.dataTable),
+        data_table: dataTableJson,
         accumulated_dg: logger.accumulatedDG,
         last_fetched: logger.lastFetched?.toISOString(),
         is_running: logger.isRunning,
         start_time: logger.startTime?.toISOString(),
         updated_at: new Date().toISOString(),
       });
+    
+    console.log('🔍 Supabase response:', result);
+    const { error } = result;
 
     if (error) {
       console.error('❌ Error saving logger to database:', error);
