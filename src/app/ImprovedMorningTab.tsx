@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   LineChart,
   Line,
@@ -340,80 +340,65 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
   });
 
   const nowHour = floorToHour(new Date());
-  // behold kun punkter fra denne timen og framover
-  return raw.filter((p) => p.time >= nowHour);
+  // Start forecast from the next hour after current time to avoid gaps
+  const forecastStartHour = new Date(nowHour);
+  forecastStartHour.setHours(forecastStartHour.getHours() + 1, 0, 0, 0);
+  return raw.filter((p) => p.time >= forecastStartHour);
 }
 
 
 
-// New function to fetch today's data (including past hours) - WeatherAPI.com for mørningslogg
+// Clean function to fetch today's data using forecast API (forecast.forecastday[0].hour)
 async function fetchTodayData(lat: number, lon: number, specificDate?: Date): Promise<Point[]> {
   const targetDate = specificDate || new Date();
   const dateStr = targetDate.toISOString().slice(0, 10);
   
-  const url = `/api/weather?type=today&lat=${lat}&lon=${lon}`;
-  console.log(`🌍 [fetchTodayData] Calling weather proxy: ${url}`);
+  console.log(`🌍 [fetchTodayData] Fetching today's data for date: ${dateStr}`);
   
+  const url = `/api/weather?type=today&lat=${lat}&lon=${lon}`;
   const res = await fetch(url);
-  console.log(`🌍 [fetchTodayData] Response status: ${res.status} ${res.statusText}`);
   
   if (!res.ok) {
-    const errorText = await res.text();
-    console.error(`❌ [fetchTodayData] API error: ${res.status} ${res.statusText}`, errorText);
-    throw new Error("Kunne ikke hente dagens værdata fra weather proxy");
+    throw new Error(`Failed to fetch today's data: ${res.status}`);
   }
   
   const data = await res.json();
-  console.log(`✅ [fetchTodayData] Successfully fetched data with ${data.forecast?.forecastday?.length || 0} forecast days`);
+  console.log(`✅ [fetchTodayData] Got ${data.forecast?.forecastday?.[0]?.hour?.length || 0} hourly data points`);
 
-  if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
-    throw new Error("Ugyldig data-struktur fra WeatherAPI.com");
+  if (!data.forecast?.forecastday?.[0]?.hour) {
+    throw new Error("No hourly data in response");
   }
 
-  const forecastDay = data.forecast.forecastday[0];
-  if (!forecastDay.hour) {
-    throw new Error("Ingen timebaserte data fra WeatherAPI.com");
-  }
-
-  const raw: Point[] = forecastDay.hour.map((hour: { time: string; temp_c: number }) => {
+  const hours = data.forecast.forecastday[0].hour;
+  const points: Point[] = [];
+  
+  for (const hour of hours) {
     try {
-      // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
-      // We need to extract just the time part (HH:MM)
-      let timeString;
-      if (hour.time.includes(' ')) {
-        // If hour.time contains space, extract just the time part
-        const timePart = hour.time.split(' ')[1]; // Get "00:00" part
-        timeString = `${dateStr}T${timePart}`;
-      } else {
-        // If hour.time is just "00:00", use it directly
-        timeString = `${dateStr}T${hour.time}`;
+      // Parse time from "2025-09-01 00:00" format
+      const timeStr = hour.time;
+      const timePart = timeStr.split(' ')[1]; // Get "00:00" part
+      const fullTimeStr = `${dateStr}T${timePart}`;
+      const parsedTime = new Date(fullTimeStr);
+      
+      if (isNaN(parsedTime.getTime())) {
+        console.error(`❌ Invalid time: ${fullTimeStr}`);
+        continue;
       }
       
-      const parsedTime = new Date(timeString);
+      points.push({
+        time: parsedTime,
+        temp: hour.temp_c
+      });
       
-      // Debug: log the time parsing
-      if (!isNaN(parsedTime.getTime())) {
-        console.log(`🔍 [Today] Parsing time: "${timeString}" -> ${parsedTime.toISOString()}, valid: true`);
-        return {
-          time: parsedTime,
-          temp: hour.temp_c,
-        };
-      } else {
-        console.error(`❌ [Today] Invalid time format: "${timeString}" from hour:`, hour);
-        return null;
-      }
+      console.log(`✅ [fetchTodayData] Added: ${parsedTime.toISOString()} = ${hour.temp_c}°C`);
+      
     } catch (error) {
-      console.error(`❌ [Today] Error parsing time for hour:`, hour, 'Error:', error);
-      return null;
+      console.error(`❌ Error parsing hour:`, hour, error);
     }
-  }).filter(Boolean); // Remove null entries
-
-  // Return all of the target date's data (including past hours)
-  return raw.filter((p) => {
-    const pointDate = new Date(p.time);
-    pointDate.setHours(0, 0, 0, 0);
-    return pointDate.getTime() === targetDate.getTime();
-  });
+  }
+  
+  console.log(`🎯 [fetchTodayData] Total points for today: ${points.length}`);
+  return points;
 }
 
 // Cache for API calls to avoid rate limiting
@@ -455,34 +440,54 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
     
     const temperatureData: Point[] = [];
     
-    // With WeatherAPI.com, we can fetch historical data up to the current hour
-    // So we fetch from start time up to the current hour
-    const currentHour = new Date(now);
-    currentHour.setMinutes(0, 0, 0);
+    // For historical data, we need to fetch from start time up to YESTERDAY ONLY
+    // This ensures we get ALL hours from start time to the end of yesterday
+    // We do NOT call fetchHistory for today's date - that's handled by fetchTodayData
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(23, 59, 59, 999);
     
-    if (from < currentHour) {
-      console.log(`📅 Fetching historical data from ${from.toISOString()} to ${currentHour.toISOString()}`);
+    console.log(`🔍 [fetchRealTemperatureData] Debug: from=${from.toISOString()}, yesterday=${yesterday.toISOString()}, today=${today.toISOString()}, from < today = ${from < today}`);
+    
+    // Only fetch historical data if the start time is before today
+    if (from < today) {
+      // Ensure we don't fetch beyond yesterday - NEVER fetch today's data via history API
+      const historicalEndTime = yesterday;
       
-      const historicalData = await fetchHistory(lat, lon, from, currentHour);
+      console.log(`🚨 [CRITICAL] About to call fetchHistory with: from=${from.toISOString()}, to=${historicalEndTime.toISOString()}`);
+      console.log(`🚨 [CRITICAL] This should NEVER include today's date!`);
+      
+      const historicalData = await fetchHistory(lat, lon, from, historicalEndTime);
       temperatureData.push(...historicalData);
       console.log(`✅ Fetched ${historicalData.length} historical temperature points`);
+      
+      // Debug: show what hours we got
+      if (historicalData.length > 0) {
+        const hours = historicalData.map(p => p.time.toISOString()).slice(0, 5);
+        console.log(`🔍 [fetchRealTemperatureData] Sample historical hours: ${hours.join(', ')}...`);
+      }
     } else {
-      console.log(`📅 Logger started too recently (${from.toISOString()}), no historical data needed`);
+      console.log(`📅 Logger started today (${from.toISOString()}), no historical data needed - will use today's data only`);
     }
     
-    // Get today's data (including past hours) to fill any remaining gaps
-    console.log(`📅 Fetching today's data to fill remaining gaps`);
+    // For TODAY's data, we MUST use the forecast API (forecast.forecastday[0].hour)
+    // This gives us ALL hours from 00:00 to 23:00 for today, including past hours
+    console.log(`📅 Fetching today's data using forecast API (forecast.forecastday[0].hour)`);
     
-    const todayData = await fetchTodayData(lat, lon);
-    
-    // Include data up to and including current hour to avoid gaps
-    const filteredTodayData = todayData.filter(point => point.time <= currentHour);
-    
-    console.log(`📅 Current time: ${now.toISOString()}, Current hour: ${currentHour.toISOString()}`);
-    console.log(`📊 Today's data points: ${todayData.length}, Filtered to current hour: ${filteredTodayData.length}`);
-    
-    temperatureData.push(...filteredTodayData);
-    console.log(`✅ Fetched ${filteredTodayData.length} today's temperature points`);
+    try {
+      const todayData = await fetchTodayData(lat, lon);
+      console.log(`✅ Fetched ${todayData.length} today's temperature points using forecast API`);
+      
+      // Add ALL of today's data - this includes past hours (00:00 to now) and future hours
+      temperatureData.push(...todayData);
+      
+      console.log(`✅ Added today's data: ${temperatureData.length} total temperature points`);
+    } catch (error) {
+      console.error('❌ Error fetching today\'s data:', error);
+      // Don't fail completely if today's data fails
+    }
     
     console.log(`✅ Total: ${temperatureData.length} temperature points from ${from.toISOString()} to ${now.toISOString()}`);
     
@@ -502,8 +507,26 @@ async function fetchHistory(
   from: Date,
   to: Date
 ): Promise<Point[]> {
+  // HARD STOP: Never process today's date
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const fromStr = from.toISOString().slice(0, 10);
+  const toStr = to.toISOString().slice(0, 10);
+  
+  if (fromStr === todayStr || toStr === todayStr) {
+    console.log(`🚨 [fetchHistory] HARD STOP: Date range includes today (${fromStr} to ${toStr}) - returning empty array`);
+    return [];
+  }
+  
   try {
-    const cacheKey = `weatherapi_${lat},${lon},${from.toISOString().slice(0, 10)},${to.toISOString().slice(0, 10)}`;
+    // Use the already declared variables
+    let cacheKey: string;
+    // If any date in the range is today, don't use cache
+    if (fromStr === todayStr || toStr === todayStr) {
+      console.log(`🚨 [fetchHistory] Cache bypass: date range includes today (${fromStr} to ${toStr})`);
+      cacheKey = `weatherapi_${lat},${lon},${fromStr},${toStr}_NO_CACHE_${Date.now()}`;
+    } else {
+      cacheKey = `weatherapi_${lat},${lon},${fromStr},${toStr}`;
+    }
     const now = Date.now();
     
     // Check cache first
@@ -529,8 +552,29 @@ async function fetchHistory(
     const points: Point[] = [];
     const currentDate = new Date(from);
     
+    console.log(`🔍 [fetchHistory] Debug: from=${from.toISOString()}, to=${to.toISOString()}, currentDate=${currentDate.toISOString()}`);
+    console.log(`🔍 [fetchHistory] Will fetch data for dates: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
+    
     while (currentDate <= to) {
       const dateStr = currentDate.toISOString().slice(0, 10);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      
+      console.log(`🚨 [fetchHistory] Processing date: ${dateStr}, today: ${todayStr}, should skip: ${dateStr === todayStr}`);
+      
+      // NEVER call history API for today's date - use forecast API instead
+      if (dateStr === todayStr) {
+        console.log(`⚠️ [fetchHistory] Skipping today's date ${dateStr} - should use forecast API instead`);
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
+      // Double-check: if somehow we're still processing today, skip it
+      if (dateStr === new Date().toISOString().slice(0, 10)) {
+        console.log(`🚨 [fetchHistory] EMERGENCY: Still processing today's date ${dateStr} - forcing skip`);
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
       const url = `/api/weather?type=history&lat=${lat}&lon=${lon}&date=${dateStr}`;
       
       console.log(`🌍 Fetching historical data from WeatherAPI.com for date: ${dateStr}`);
@@ -572,7 +616,7 @@ async function fetchHistory(
         continue;
       }
       
-      // Extract hourly temperature data
+      // Extract hourly temperature data, but only for hours within the from-to range
       const hourlyData = forecastDay.hour.map((hour: { time: string; temp_c: number }) => {
         try {
           // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
@@ -589,9 +633,15 @@ async function fetchHistory(
           
           const parsedTime = new Date(timeString);
           
+          // Only include hours that fall within the from-to range
+          if (parsedTime < from || parsedTime > to) {
+            console.log(`🔍 [fetchHistory] Filtering out hour ${parsedTime.toISOString()} - outside range ${from.toISOString()} to ${to.toISOString()}`);
+            return null;
+          }
+          
           // Debug: log the time parsing
           if (!isNaN(parsedTime.getTime())) {
-            console.log(`🔍 Parsing time: "${timeString}" -> ${parsedTime.toISOString()}, valid: true`);
+            console.log(`🔍 Parsing time: "${timeString}" -> ${parsedTime.toISOString()}, valid: true, within range: ${from.toISOString()} to ${to.toISOString()}`);
             return {
               time: parsedTime,
               temp: hour.temp_c,
@@ -1156,29 +1206,24 @@ function LoggerCard({
           console.log(`🔍 [createDataTableOnStart] Final cumDG: ${cumDG.toFixed(3)} DG, target: ${logger.target} DG, targetReached: ${targetReached}`);
           
           // Create dataTable with combined data
-          allData.forEach(point => {
+          console.log(`🔍 [DEBUG] Processing ${allData.length} data points for dataTable`);
+          
+          allData.forEach((point, index) => {
             const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
             
-            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
+            // Stop adding data 4 hours after target DG is reached
+            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 4 * 60 * 60 * 1000)) {
+              console.log(`🔍 [DEBUG] Skipping point ${index}: ${point.time.toISOString()} - too far after target`);
               return;
             }
             
-            // Determine if this is historical data, today's data, or forecast data
+            // Simple classification: past hours = historical, future hours = forecast
             const now = new Date();
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
-            const pointDate = new Date(point.time);
-            pointDate.setHours(0, 0, 0, 0);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const isHistorical = pointDate.getTime() < today.getTime();
-            const isTodayData = pointDate.getTime() === today.getTime() && point.time <= currentHour;
-    
             
-            // For new loggers, we want to show forecast data for future hours to enable DG estimation
-            // So we'll use tempEst for future hours and tempLogg for past/current hours
-            // But we need to be more generous with what we consider "forecast" data
-            const isFutureHour = point.time > currentHour;
+            const isHistorical = point.time <= currentHour;
+            const isForecast = point.time > currentHour;
             
             // Ensure runtime is valid for DG calculation
             const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
@@ -1186,8 +1231,8 @@ function LoggerCard({
             dataTable.push({
               timestamp: floorToHour(point.time),
               runtime: validRuntime,
-              tempEst: isFutureHour ? point.temp : null, // All future hours have tempEst for DG estimation
-              tempLogg: (isHistorical || isTodayData) ? point.temp : null // Historical and today's data has tempLogg
+              tempEst: isForecast ? point.temp : null, // Future hours have tempEst for DG estimation
+              tempLogg: isHistorical ? point.temp : null // Historical and today's past hours have tempLogg
             });
           });
           
@@ -1196,33 +1241,30 @@ function LoggerCard({
           // For existing loggers (started before today), combine historical + forecast data
           console.log('📊 Existing logger - combining historical + forecast data');
           
-          // Get historical data from start time to now (current time) - to get all recent hours
-          const now = new Date();
-          
-          let historicalData: Point[] = [];
+          // For existing loggers, we need to get ALL data from start time to now
+          // Use fetchRealTemperatureData to get historical + today's data, then add forecast
+          let realData: Point[] = [];
           try {
-            console.log(`🔍 [fetchHistory] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}, from: ${logger.startTime!.toISOString()}, to: ${now.toISOString()}`);
-            historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime!, now);
-            console.log(`✅ Historical data: ${historicalData.length} points from ${logger.startTime!.toISOString()} to ${now.toISOString()}`);
+            console.log(`🔍 [fetchRealTemperatureData] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}, startTime: ${logger.startTime}`);
+            realData = await fetchRealTemperatureData(logger.lat, logger.lng, logger.startTime);
+            console.log(`✅ Real temperature data for existing logger: ${realData.length} points`);
           } catch (error) {
-            console.error('❌ Error fetching historical data:', error);
+            console.error('❌ Error fetching real temperature data:', error);
             console.error('❌ Error details:', {
               message: error instanceof Error ? error.message : 'Unknown error',
               stack: error instanceof Error ? error.stack : 'No stack trace',
               lat: logger.lat,
-              lon: logger.lng,
-              from: logger.startTime!.toISOString(),
-              to: now.toISOString()
+              lon: logger.lng
             });
-            historicalData = [];
+            realData = [];
           }
           
-          // Get forecast data from today onwards
+          // Get forecast data from next hour onwards
           let forecast: Point[] = [];
           try {
             console.log(`🔍 [fetchForecast] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}`);
             forecast = await fetchForecast(logger.lat, logger.lng);
-            console.log(`✅ Forecast data: ${forecast.length} points from today onwards`);
+            console.log(`✅ Forecast data: ${forecast.length} points from next hour onwards`);
           } catch (error) {
             console.error('❌ Error fetching forecast data:', error);
             console.error('❌ Error details:', {
@@ -1234,9 +1276,17 @@ function LoggerCard({
             forecast = [];
           }
           
-          // Combine historical and forecast data
-          const allData = [...historicalData, ...forecast];
-          console.log(`📊 Combined data: ${allData.length} total points`);
+          // Combine real data and forecast data
+          const allData = [...realData, ...forecast];
+          console.log(`📊 Combined data: ${allData.length} total points (real: ${realData.length}, forecast: ${forecast.length})`);
+          
+          // Debug: show what hours we have
+          console.log(`🔍 [DEBUG] Sample data points:`, allData.slice(0, 10).map(p => ({
+            time: p.time.toISOString(),
+            temp: p.temp,
+            date: p.time.toISOString().slice(0, 10),
+            hour: p.time.getHours()
+          })));
           
           // Calculate estimated finish time using combined data
           let cumDG = 0;
@@ -1268,28 +1318,39 @@ function LoggerCard({
             
             if (targetReached) {
               hoursAfterTarget++;
-              if (hoursAfterTarget >= 12) break;
+              if (hoursAfterTarget >= 4) break; // Stop 4 hours after target instead of 12
             }
           }
           
           console.log(`🔍 [createDataTableOnStart] Final cumDG: ${cumDG.toFixed(3)} DG, target: ${logger.target} DG, targetReached: ${targetReached}`);
           
           // Create dataTable with combined data
-          allData.forEach(point => {
+          console.log(`🔍 [createDataTableOnStart] Processing ${allData.length} data points for dataTable`);
+          console.log(`🔍 [createDataTableOnStart] Logger start time: ${logger.startTime?.toISOString()}`);
+          
+          allData.forEach((point, index) => {
             const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
             
-            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
+            // Stop adding data 4 hours after target DG is reached
+            if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 4 * 60 * 60 * 1000)) {
+              console.log(`🔍 [createDataTableOnStart] Skipping point ${index}: ${point.time.toISOString()} - too far after target`);
               return;
             }
             
-            // Determine if this is historical or forecast data
-            const isHistorical = point.time <= now;
+            // Simple classification: past hours = historical, future hours = forecast
+            const now = new Date();
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
-            // All data that is not historical should be treated as forecast
-            // This includes today's data and future data
-            const isForecast = !isHistorical;
+            const isHistorical = point.time <= currentHour;
+            const isForecast = point.time > currentHour;
+            
+            // Debug: log today's data points
+            if (point.time.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+              console.log(`🔍 [DEBUG] Today's data: ${point.time.toISOString()} = ${point.temp}°C, isHistorical: ${isHistorical}, isForecast: ${isForecast}`);
+            }
+            
+            console.log(`🔍 [createDataTableOnStart] Point ${index}: ${point.time.toISOString()}, temp=${point.temp}, runtime=${runtime}h, isHistorical=${isHistorical}, isForecast=${isForecast}`);
             
             // For historical data, we need to handle runtime differently
             // Historical data should show tempLogg for past hours, tempEst for future hours
@@ -1299,9 +1360,14 @@ function LoggerCard({
             dataTable.push({
               timestamp: point.time, // Use exact time, not floorToHour
               runtime: validRuntime,
-              tempEst: isForecast ? point.temp : null, // All non-historical hours have tempEst for DG estimation
-              tempLogg: isHistorical ? point.temp : null // Historical data has tempLogg
+              tempEst: isForecast ? point.temp : null, // Future hours have tempEst for DG estimation
+              tempLogg: isHistorical ? point.temp : null // Historical and today's past hours have tempLogg
             });
+            
+            // Debug: log what was added
+            if (point.time.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+              console.log(`🔍 [DEBUG] Added to dataTable: ${point.time.toISOString()} = ${point.temp}°C, tempLogg: ${isHistorical ? point.temp : 'null'}, tempEst: ${isForecast ? point.temp : 'null'}`);
+            }
           });
           
           setEstimatedFinish(estimatedFinish);
@@ -1605,8 +1671,12 @@ function LoggerCard({
               if (logger.startTime) {
                 console.log(`🧪 [Debug] Testing API calls for ${logger.name}`);
                 try {
-                  // Test historical data
-                  const historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime, new Date());
+                  // Test historical data (but not for today's date)
+                  const yesterday = new Date();
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  yesterday.setHours(23, 59, 59, 999);
+                  
+                  const historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime, yesterday);
                   console.log(`📊 [API Test] Historical data: ${historicalData.length} points`);
                   console.log(`📊 [API Test] Sample historical:`, historicalData.slice(0, 3).map(p => ({
                     time: p.time.toISOString(),
@@ -1730,6 +1800,11 @@ function LoggerCard({
               <tbody>
                 {logger.dataTable && logger.dataTable.length > 0 ? (
                   logger.dataTable.slice(0, 100).map((point, index) => {
+                    // Don't show historical data after target DG is reached
+                    if (estimatedFinish && point.timestamp > new Date(estimatedFinish.getTime() + 4 * 60 * 60 * 1000)) {
+                      return null; // Skip this point
+                    }
+                    
                     const isHistorical = point.tempLogg !== null;
                     const isForecast = point.tempEst !== null;
                     let status = '❌ Ingen';
@@ -1761,7 +1836,7 @@ function LoggerCard({
                         </td>
                       </tr>
                     );
-                  })
+                  }).filter(Boolean) // Remove null entries
                 ) : (
                   <tr>
                     <td colSpan={5} style={{ padding: '8px', textAlign: 'center', color: '#666' }}>
@@ -1895,10 +1970,20 @@ function LoggerCard({
                 
                 console.log(`📊 Total historical DG: ${totalHistoricalDG.toFixed(2)}`);
                 
-                // Filter out points before startTime to ensure chart starts at the right point
-                const filteredDataTable = logger.dataTable.filter(point => 
-                  logger.startTime ? point.timestamp >= logger.startTime : true
-                );
+                // Filter out points before startTime and after target DG (4 hours after estimatedFinish)
+                const filteredDataTable = logger.dataTable.filter(point => {
+                  // Must be after start time
+                  if (logger.startTime && point.timestamp < logger.startTime) {
+                    return false;
+                  }
+                  
+                  // Don't show data after target DG is reached (4 hours after estimatedFinish)
+                  if (estimatedFinish && point.timestamp > new Date(estimatedFinish.getTime() + 4 * 60 * 60 * 1000)) {
+                    return false;
+                  }
+                  
+                  return true;
+                });
                 
                 const chartData = filteredDataTable.map(point => {
                   try {
