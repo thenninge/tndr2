@@ -1196,7 +1196,7 @@ function LoggerCard({
           // For existing loggers (started before today), combine historical + forecast data
           console.log('📊 Existing logger - combining historical + forecast data');
           
-          // Get historical data from start time to now (current time)
+          // Get historical data from start time to now (current time) - to get all recent hours
           const now = new Date();
           
           let historicalData: Point[] = [];
