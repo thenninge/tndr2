@@ -1341,14 +1341,18 @@ function LoggerCard({
             const isHistorical = isToday ? point.time < currentHour : point.time < now;
             const isForecast = isToday ? point.time >= currentHour : point.time >= now;
             
-            // Set temperatures correctly
+            // Set temperatures correctly with current hour as transition point
             let tempLogg = null;
             let tempEst = null;
             
-            if (isHistorical) {
-              tempLogg = point.temp; // Past hours go to historical graph
+            // Current hour gets special treatment - both graphs meet here
+            if (point.time.getTime() === currentHour.getTime()) {
+              tempLogg = point.temp;  // Historical graph extends to current hour
+              tempEst = point.temp;   // Forecast graph starts from current hour
+            } else if (isHistorical) {
+              tempLogg = point.temp;  // Past hours only
             } else if (isForecast) {
-              tempEst = point.temp; // Current hour and future go to forecast graph
+              tempEst = point.temp;   // Future hours only
             }
             
             // Ensure runtime is valid for DG calculation
@@ -1496,14 +1500,18 @@ function LoggerCard({
             // But we need to ensure runtime is valid for DG calculation
             const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
             
-            // Set temperatures correctly
+            // Set temperatures correctly with current hour as transition point
             let tempLogg = null;
             let tempEst = null;
             
-            if (isHistorical) {
-              tempLogg = point.temp; // Past hours go to historical graph
+            // Current hour gets special treatment - both graphs meet here
+            if (point.time.getTime() === currentHour.getTime()) {
+              tempLogg = point.temp;  // Historical graph extends to current hour
+              tempEst = point.temp;   // Forecast graph starts from current hour
+            } else if (isHistorical) {
+              tempLogg = point.temp;  // Past hours only
             } else if (isForecast) {
-              tempEst = point.temp; // Current hour and future go to forecast graph
+              tempEst = point.temp;   // Future hours only
             }
             
             dataTable.push({
