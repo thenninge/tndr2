@@ -2133,15 +2133,15 @@ function LoggerCard({
                     minute: "2-digit",
                   })
                 }
-                formatter={(v: number, name: string, props: any) => {
-                  const payload = props.payload;
+                formatter={(v: number, name: string, item: { payload?: { tempLogg?: number | null; tempEst?: number | null } }) => {
+                  const payload = item.payload;
                   let tooltipText = `${v.toFixed(1)} DG`;
                   
                   // Add temperature information if available
-                  if (payload.tempLogg !== null) {
+                  if (payload?.tempLogg !== null && payload?.tempLogg !== undefined) {
                     tooltipText += ` | Historisk: ${payload.tempLogg.toFixed(1)}°C`;
                   }
-                  if (payload.tempEst !== null) {
+                  if (payload?.tempEst !== null && payload?.tempEst !== undefined) {
                     tooltipText += ` | Estimert: ${payload.tempEst.toFixed(1)}°C`;
                   }
                   
