@@ -1050,8 +1050,8 @@ export default function ImprovedMorningTab() {
                 {
                   id: Date.now() + Math.random() + "",
                   name: newName.trim(),
-                  lat: 59.91, // Elghytta coordinates
-                  lng: 10.75,
+                  lat: 60.724910757831324, // Updated coordinates
+                  lng: 9.036607371747797,
                   target: 40,
                   offset: 0,
                   dayOffset: 0,
