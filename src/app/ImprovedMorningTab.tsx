@@ -1189,6 +1189,67 @@ function LoggerCard({
   const [estimatedFinish, setEstimatedFinish] = useState<Date | undefined>();
   const [loading, setLoading] = useState(false);
 
+  // Function to refresh dataTable classification (forecast -> historical as time progresses)
+  function refreshDataTableClassification() {
+    if (!logger.dataTable || logger.dataTable.length === 0) {
+      return;
+    }
+
+    console.log(`🔄 [refreshDataTableClassification] Refreshing data classification for ${logger.name}`);
+    
+    const now = new Date();
+    const currentHour = new Date(now);
+    currentHour.setMinutes(0, 0, 0);
+    
+    let hasChanges = false;
+    
+    const updatedDataTable = logger.dataTable.map(point => {
+      const timestamp = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
+      
+      // Reclassify based on current time
+      const isToday = timestamp.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
+      const isHistorical = isToday ? timestamp < currentHour : timestamp < now;
+      const isForecast = isToday ? timestamp >= currentHour : timestamp >= now;
+      
+      // Check if classification needs to change
+      const wasHistorical = point.tempLogg !== null;
+      const wasForecast = point.tempEst !== null;
+      
+      let newTempLogg = point.tempLogg;
+      let newTempEst = point.tempEst;
+      
+      if (isHistorical && !wasHistorical) {
+        // This point is now historical but was forecast
+        newTempLogg = point.tempEst;
+        newTempEst = null;
+        hasChanges = true;
+        console.log(`🔄 [refreshDataTableClassification] Moving ${timestamp.toISOString()} from forecast to historical`);
+      } else if (isForecast && !wasForecast) {
+        // This point is now forecast but was historical (shouldn't happen, but just in case)
+        newTempEst = point.tempLogg;
+        newTempLogg = null;
+        hasChanges = true;
+        console.log(`🔄 [refreshDataTableClassification] Moving ${timestamp.toISOString()} from historical to forecast`);
+      }
+      
+      return {
+        ...point,
+        tempLogg: newTempLogg,
+        tempEst: newTempEst
+      };
+    });
+    
+    if (hasChanges) {
+      console.log(`✅ [refreshDataTableClassification] Updated dataTable classification for ${logger.name}`);
+      setLoggers(loggers => loggers.map(x => x.id === logger.id ? { 
+        ...x, 
+        dataTable: updatedDataTable
+      } : x));
+    } else {
+      console.log(`ℹ️ [refreshDataTableClassification] No classification changes needed for ${logger.name}`);
+    }
+  }
+
 
 
   // Opprett dataTable når loggeren starter (startTime settes) eller når dataTable mangler
@@ -1665,6 +1726,9 @@ function LoggerCard({
         const success = await updateRealTemperatureData();
         if (success) {
           console.log(`✅ [updateRealLog] Successfully updated real temperature data for ${logger.name}`);
+          
+          // Also refresh the dataTable classification to move forecast data to historical as time progresses
+          refreshDataTableClassification();
         } else {
           console.log(`❌ [updateRealLog] Failed to update real temperature data for ${logger.name}`);
         }
@@ -1672,6 +1736,8 @@ function LoggerCard({
         console.error("Feil ved oppdatering av reell logg:", err);
       }
     }
+
+
 
     // Kjør umiddelbart for eksisterende logger
     updateRealLog();
@@ -1682,6 +1748,23 @@ function LoggerCard({
       return () => clearInterval(interval);
     }
   }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime, updateRealTemperatureData, logger.name]);
+
+  // Periodically refresh dataTable classification to move forecast data to historical as time progresses
+  useEffect(() => {
+    if (!logger.dataTable || logger.dataTable.length === 0) {
+      return;
+    }
+
+    // Refresh classification immediately
+    refreshDataTableClassification();
+    
+    // Set up interval to refresh classification every hour
+    const classificationInterval = setInterval(() => {
+      refreshDataTableClassification();
+    }, 60 * 60 * 1000); // Every hour
+    
+    return () => clearInterval(classificationInterval);
+  }, [logger.dataTable, logger.id]);
 
 
 
