@@ -152,6 +152,34 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
 async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
   try {
     console.log('💾 Saving logger to database:', logger.name);
+    
+    // Test database connection first
+    console.log('🔍 Testing database connection...');
+    const { data: testData, error: testError } = await supabase
+      .from('morning_loggers')
+      .select('count')
+      .limit(1);
+    
+    if (testError) {
+      console.log('🔍 Database connection test failed:', testError);
+    } else {
+      console.log('🔍 Database connection test successful');
+    }
+    
+    console.log('🔍 Attempting to save logger data:', {
+      id: logger.id,
+      name: logger.name,
+      lat: logger.lat,
+      lng: logger.lng,
+      target: logger.target,
+      temp_offset: logger.offset,
+      day_offset: logger.dayOffset,
+      night_offset: logger.nightOffset,
+      base_temp: logger.baseTemp,
+      data_table_length: logger.dataTable?.length || 0,
+      accumulated_dg: logger.accumulatedDG,
+      is_running: logger.isRunning
+    });
     const { error } = await supabase
       .from('morning_loggers')
       .upsert({
@@ -174,6 +202,13 @@ async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
 
     if (error) {
       console.error('❌ Error saving logger to database:', error);
+      console.log('🔍 Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        fullError: JSON.stringify(error, null, 2)
+      });
       console.log('⚠️ Database table might not exist yet. Using localStorage fallback...');
       // Fallback to localStorage when database fails
       try {
@@ -191,6 +226,12 @@ async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('❌ Error saving logger to database:', error);
+    console.log('🔍 Catch block error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error type',
+      name: error instanceof Error ? error.name : 'Unknown',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      fullError: JSON.stringify(error, null, 2)
+    });
     console.log('⚠️ Database operation failed. Using localStorage fallback...');
     // Fallback to localStorage when database fails
     try {
