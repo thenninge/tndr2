@@ -1196,16 +1196,14 @@ function LoggerCard({
           // For existing loggers (started before today), combine historical + forecast data
           console.log('📊 Existing logger - combining historical + forecast data');
           
-          // Get historical data from start time to previous hour (to avoid gaps)
+          // Get historical data from start time to now (current time)
           const now = new Date();
-          const previousHour = new Date(now);
-          previousHour.setHours(previousHour.getHours() - 1, 59, 59, 999);
           
           let historicalData: Point[] = [];
           try {
-            console.log(`🔍 [fetchHistory] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}, from: ${logger.startTime!.toISOString()}, to: ${previousHour.toISOString()}`);
-            historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime!, previousHour);
-            console.log(`✅ Historical data: ${historicalData.length} points from ${logger.startTime!.toISOString()} to ${previousHour.toISOString()}`);
+            console.log(`🔍 [fetchHistory] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}, from: ${logger.startTime!.toISOString()}, to: ${now.toISOString()}`);
+            historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime!, now);
+            console.log(`✅ Historical data: ${historicalData.length} points from ${logger.startTime!.toISOString()} to ${now.toISOString()}`);
           } catch (error) {
             console.error('❌ Error fetching historical data:', error);
             console.error('❌ Error details:', {
@@ -1214,7 +1212,7 @@ function LoggerCard({
               lat: logger.lat,
               lon: logger.lng,
               from: logger.startTime!.toISOString(),
-              to: previousHour.toISOString()
+              to: now.toISOString()
             });
             historicalData = [];
           }
@@ -1285,8 +1283,7 @@ function LoggerCard({
             }
             
             // Determine if this is historical or forecast data
-            const isHistorical = point.time <= previousHour;
-            const now = new Date();
+            const isHistorical = point.time <= now;
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
