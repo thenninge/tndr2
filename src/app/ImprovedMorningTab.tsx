@@ -1318,24 +1318,18 @@ function LoggerCard({
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
-            // Treat current hour as forecast to avoid gaps
+            // CORRECT LOGIC: past hours = historical, current hour and future = forecast
             const isHistorical = point.time < currentHour;
             const isForecast = point.time >= currentHour;
             
-            // Special case: if this is the current hour, copy the temperature to both historical and forecast
-            // This ensures no gap between historical and forecast graphs
+            // Set temperatures correctly
             let tempLogg = null;
             let tempEst = null;
             
             if (isHistorical) {
-              tempLogg = point.temp;
+              tempLogg = point.temp; // Past hours go to historical graph
             } else if (isForecast) {
-              tempEst = point.temp;
-            }
-            
-            // If this is the current hour, also set tempLogg so historical graph extends to this point
-            if (point.time.getTime() === currentHour.getTime()) {
-              tempLogg = point.temp;
+              tempEst = point.temp; // Current hour and future go to forecast graph
             }
             
             // Ensure runtime is valid for DG calculation
@@ -1455,7 +1449,7 @@ function LoggerCard({
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
-            // Treat current hour as forecast to avoid gaps
+            // CORRECT LOGIC: past hours = historical, current hour and future = forecast
             const isHistorical = point.time < currentHour;
             const isForecast = point.time >= currentHour;
             
@@ -1471,20 +1465,14 @@ function LoggerCard({
             // But we need to ensure runtime is valid for DG calculation
             const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
             
-            // Special case: if this is the current hour, copy the temperature to both historical and forecast
-            // This ensures no gap between historical and forecast graphs
+            // Set temperatures correctly
             let tempLogg = null;
             let tempEst = null;
             
             if (isHistorical) {
-              tempLogg = point.temp;
+              tempLogg = point.temp; // Past hours go to historical graph
             } else if (isForecast) {
-              tempEst = point.temp;
-            }
-            
-            // If this is the current hour, also set tempLogg so historical graph extends to this point
-            if (point.time.getTime() === currentHour.getTime()) {
-              tempLogg = point.temp;
+              tempEst = point.temp; // Current hour and future go to forecast graph
             }
             
             dataTable.push({
