@@ -1596,8 +1596,11 @@ function LoggerCard({
   // Beregn estimatedFinish når dataTable endres (for eksisterende logger)
   useEffect(() => {
     if (!logger.dataTable || logger.dataTable.length === 0 || !logger.startTime) {
+      console.log(`🔍 [estimatedFinish useEffect] Skipping calculation: dataTable=${logger.dataTable?.length}, startTime=${logger.startTime?.toLocaleString()}`);
       return;
     }
+    
+    console.log(`🔍 [estimatedFinish useEffect] Recalculating for logger ${logger.name} with offsets: day=${logger.dayOffset}, night=${logger.nightOffset}, base=${logger.baseTemp}`);
     
     // Beregn estimatedFinish fra eksisterende dataTable
     // Sjekk både historiske data (tempLogg) og forecast data (tempEst)
@@ -1608,11 +1611,11 @@ function LoggerCard({
       if (point.runtime > 0) {
         let temp: number | null = null;
         
-        // Prioritér historiske data hvis tilgjengelig, ellers bruk forecast
-        if (point.tempLogg !== null) {
-          temp = point.tempLogg;
-        } else if (point.tempEst !== null) {
+        // Prioritér forecast data hvis tilgjengelig, ellers bruk historiske data
+        if (point.tempEst !== null) {
           temp = point.tempEst;
+        } else if (point.tempLogg !== null) {
+          temp = point.tempLogg;
         }
         
         if (temp !== null) {
@@ -1620,6 +1623,8 @@ function LoggerCard({
           const adjustedTemp = temp + periodOffset;
           const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
           cumDG += dgHour / 24;
+          
+          console.log(`🔍 [estimatedFinish] Point: ${point.timestamp.toLocaleString()}, temp: ${temp}°C, offset: ${periodOffset}°C, adjusted: ${adjustedTemp}°C, dgHour: ${dgHour.toFixed(3)}, cumDG: ${cumDG.toFixed(3)}`);
           
           if (cumDG >= logger.target && !estimatedFinish) {
             estimatedFinish = point.timestamp;
@@ -1630,6 +1635,7 @@ function LoggerCard({
       }
     }
     
+    console.log(`🔍 [estimatedFinish useEffect] Final result: estimatedFinish=${estimatedFinish?.toLocaleString() || 'undefined'}, cumDG=${cumDG.toFixed(3)}, target=${logger.target}`);
     setEstimatedFinish(estimatedFinish);
   }, [logger.dataTable, logger.startTime, logger.target, logger.dayOffset, logger.nightOffset, logger.baseTemp, logger.id]);
 
