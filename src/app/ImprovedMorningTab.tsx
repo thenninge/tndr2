@@ -572,10 +572,17 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
       const todayData = await fetchTodayData(lat, lon);
       console.log(`✅ Fetched ${todayData.length} today's temperature points using forecast API`);
       
-      // Add ALL of today's data - this includes past hours (00:00 to now) and future hours
-      temperatureData.push(...todayData);
+      // CRITICAL FIX: Separate today's data into historical (past) and forecast (future)
+      const now = new Date();
+      const currentHour = new Date(now);
+      currentHour.setMinutes(0, 0, 0);
       
-      console.log(`✅ Added today's data: ${temperatureData.length} total temperature points`);
+      // Only add PAST hours from today to temperatureData (these will be historical)
+      const pastHoursFromToday = todayData.filter(point => point.time < currentHour);
+      temperatureData.push(...pastHoursFromToday);
+      
+      console.log(`✅ Added ${pastHoursFromToday.length} past hours from today to historical data`);
+      console.log(`📊 Today's data breakdown: ${pastHoursFromToday.length} past hours + ${todayData.length - pastHoursFromToday.length} future hours`);
     } catch (error) {
       console.error('❌ Error fetching today\'s data:', error);
       // Don't fail completely if today's data fails
