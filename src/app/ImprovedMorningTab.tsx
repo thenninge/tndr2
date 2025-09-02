@@ -968,7 +968,11 @@ export default function ImprovedMorningTab() {
                   dataTable: [],
                   accumulatedDG: 0,
                   isRunning: false,
-                  startTime: customStartTime ? new Date(customStartTime) : undefined,
+                  startTime: customStartTime ? new Date(customStartTime) : (() => {
+                    const now = new Date();
+                    now.setMinutes(0, 0, 0);
+                    return now;
+                  })(),
                 },
               ]);
               setNewName("");
@@ -1619,13 +1623,16 @@ function LoggerCard({
           {logger.isRunning ? '⏸️ Pause' : '▶️ Start'}
         </button>
 
-        {/* Debug: Custom Start Time */}
+        {/* Start Time Selection */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '12px' }}>
-          <span style={{ color: '#666' }}>Debug Start:</span>
+          <span style={{ color: '#666' }}>Start tid:</span>
           <input
             type="date"
             value={(() => {
-              if (!logger.startTime) return '';
+              if (!logger.startTime) {
+                const now = new Date();
+                return now.toISOString().split('T')[0];
+              }
               const date = new Date(logger.startTime);
               return date.toISOString().split('T')[0];
             })()}
@@ -1648,7 +1655,10 @@ function LoggerCard({
           <input
             type="time"
             value={(() => {
-              if (!logger.startTime) return '12:00';
+              if (!logger.startTime) {
+                const now = new Date();
+                return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+              }
               const date = new Date(logger.startTime);
               return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
             })()}
