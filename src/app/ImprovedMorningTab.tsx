@@ -1265,6 +1265,17 @@ function LoggerCard({
             temp: p.temp
           })));
           
+          // CRITICAL DEBUG: Show all today's data points
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const todayData = allData.filter(p => p.time >= today);
+          console.log('🔍 [CRITICAL DEBUG] Today\'s data points:', todayData.map(p => ({
+            time: p.time.toISOString(),
+            temp: p.temp,
+            hour: p.time.getHours(),
+            isPast: p.time < new Date()
+          })));
+          
           // Calculate estimated finish time
           let cumDG = 0;
           let estimatedFinish: Date | undefined;
@@ -1394,6 +1405,17 @@ function LoggerCard({
             temp: p.temp,
             date: p.time.toISOString().slice(0, 10),
             hour: p.time.getHours()
+          })));
+          
+          // CRITICAL DEBUG: Show all today's data points
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const todayData = allData.filter(p => p.time >= today);
+          console.log('🔍 [CRITICAL DEBUG] Today\'s data points:', todayData.map(p => ({
+            time: p.time.toISOString(),
+            temp: p.temp,
+            hour: p.time.getHours(),
+            isPast: p.time < new Date()
           })));
           
           // Calculate estimated finish time using combined data
