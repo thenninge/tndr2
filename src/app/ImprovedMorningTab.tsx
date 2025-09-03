@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   LineChart,
   Line,
@@ -109,8 +109,9 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error loading loggers:', error);
-      return [];
+      console.error('❌ Error loading loggers from database:', error);
+      console.log('⚠️ Database table might not exist yet. Using localStorage fallback...');
+      return loadLoggersFromLocalStorage();
     }
 
     console.log('✅ Loaded loggers from database:', data?.length || 0, 'loggers');
@@ -142,15 +143,68 @@ async function loadLoggersFromDatabase(): Promise<Logger[]> {
         startTime: dbLogger.start_time ? new Date(dbLogger.start_time as string) : undefined,
       }));
   } catch (error) {
-    console.error('Error loading loggers:', error);
-    return [];
+    console.error('❌ Error loading loggers from database:', error);
+    console.log('⚠️ Database operation failed. Using localStorage fallback...');
+    return loadLoggersFromLocalStorage();
   }
 }
 
 async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
+  console.log('🚀 saveLoggerToDatabase called with logger:', logger.name);
   try {
     console.log('💾 Saving logger to database:', logger.name);
-    const { error } = await supabase
+    
+    // Test database connection first
+    console.log('🔍 Testing database connection...');
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from('morning_loggers')
+        .select('count')
+        .limit(1);
+      
+      if (testError) {
+        console.log('🔍 Database connection test failed:', testError);
+        console.log('🔍 Test error details:', JSON.stringify(testError, null, 2));
+      } else {
+        console.log('🔍 Database connection test successful');
+        console.log('🔍 Test data:', testData);
+      }
+    } catch (testCatchError) {
+      console.log('🔍 Database connection test threw exception:', testCatchError);
+    }
+    
+    console.log('🔍 Attempting to save logger data:', {
+      id: logger.id,
+      name: logger.name,
+      lat: logger.lat,
+      lng: logger.lng,
+      target: logger.target,
+      temp_offset: logger.offset,
+      day_offset: logger.dayOffset,
+      night_offset: logger.nightOffset,
+      base_temp: logger.baseTemp,
+      data_table_length: logger.dataTable?.length || 0,
+      accumulated_dg: logger.accumulatedDG,
+      is_running: logger.isRunning
+    });
+    
+    // Validate data before sending
+    if (!logger.id || !logger.name) {
+      console.error('❌ Invalid logger data - missing required fields');
+      return false;
+    }
+    
+    // Check if dataTable can be stringified
+    let dataTableJson: string;
+    try {
+      dataTableJson = JSON.stringify(logger.dataTable);
+      console.log('🔍 DataTable JSON stringified successfully, length:', dataTableJson.length);
+    } catch (stringifyError) {
+      console.error('❌ Error stringifying dataTable:', stringifyError);
+      return false;
+    }
+    console.log('🔍 Sending upsert request to Supabase...');
+    const result = await supabase
       .from('morning_loggers')
       .upsert({
         id: logger.id,
@@ -162,23 +216,61 @@ async function saveLoggerToDatabase(logger: Logger): Promise<boolean> {
         day_offset: logger.dayOffset,
         night_offset: logger.nightOffset,
         base_temp: logger.baseTemp,
-        data_table: JSON.stringify(logger.dataTable),
+        data_table: dataTableJson,
         accumulated_dg: logger.accumulatedDG,
         last_fetched: logger.lastFetched?.toISOString(),
         is_running: logger.isRunning,
         start_time: logger.startTime?.toISOString(),
         updated_at: new Date().toISOString(),
       });
+    
+    console.log('🔍 Supabase response:', result);
+    const { error } = result;
 
     if (error) {
-      console.error('❌ Error saving logger:', error);
-      return false;
+      console.error('❌ Error saving logger to database:', error);
+      console.log('🔍 Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        fullError: JSON.stringify(error, null, 2)
+      });
+      console.log('⚠️ Database table might not exist yet. Using localStorage fallback...');
+      // Fallback to localStorage when database fails
+      try {
+        const currentLoggers = loadLoggersFromLocalStorage();
+        const updatedLoggers = currentLoggers.map(l => l.id === logger.id ? logger : l);
+        saveLoggersToLocalStorage(updatedLoggers);
+        console.log('✅ Logger saved to localStorage as fallback:', logger.name);
+        return true;
+      } catch (localStorageError) {
+        console.error('❌ Error saving to localStorage fallback:', localStorageError);
+        return false;
+      }
     }
-    console.log('✅ Successfully saved logger:', logger.name);
+    console.log('✅ Successfully saved logger to database:', logger.name);
     return true;
   } catch (error) {
-    console.error('❌ Error saving logger:', error);
-    return false;
+    console.error('❌ Error saving logger to database:', error);
+    console.log('🔍 Catch block error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error type',
+      name: error instanceof Error ? error.name : 'Unknown',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      fullError: JSON.stringify(error, null, 2)
+    });
+    console.log('⚠️ Database operation failed. Using localStorage fallback...');
+    // Fallback to localStorage when database fails
+    try {
+      const currentLoggers = loadLoggersFromLocalStorage();
+      const updatedLoggers = currentLoggers.map(l => l.id === logger.id ? logger : l);
+      saveLoggersToLocalStorage(updatedLoggers);
+      console.log('✅ Logger saved to localStorage as fallback:', logger.name);
+      return true;
+    } catch (localStorageError) {
+      console.error('❌ Error saving to localStorage fallback:', localStorageError);
+      return false;
+    }
   }
 }
 
@@ -340,80 +432,64 @@ async function fetchForecast(lat: number, lon: number): Promise<Point[]> {
   });
 
   const nowHour = floorToHour(new Date());
-  // behold kun punkter fra denne timen og framover
-  return raw.filter((p) => p.time >= nowHour);
+  // Start forecast from the CURRENT hour to avoid gaps
+  const forecastStartHour = new Date(nowHour);
+  return raw.filter((p) => p.time >= forecastStartHour);
 }
 
 
 
-// New function to fetch today's data (including past hours) - WeatherAPI.com for mørningslogg
+// Clean function to fetch today's data using forecast API (forecast.forecastday[0].hour)
 async function fetchTodayData(lat: number, lon: number, specificDate?: Date): Promise<Point[]> {
   const targetDate = specificDate || new Date();
   const dateStr = targetDate.toISOString().slice(0, 10);
   
-  const url = `/api/weather?type=today&lat=${lat}&lon=${lon}`;
-  console.log(`🌍 [fetchTodayData] Calling weather proxy: ${url}`);
+  console.log(`🌍 [fetchTodayData] Fetching today's data for date: ${dateStr}`);
   
+  const url = `/api/weather?type=today&lat=${lat}&lon=${lon}`;
   const res = await fetch(url);
-  console.log(`🌍 [fetchTodayData] Response status: ${res.status} ${res.statusText}`);
   
   if (!res.ok) {
-    const errorText = await res.text();
-    console.error(`❌ [fetchTodayData] API error: ${res.status} ${res.statusText}`, errorText);
-    throw new Error("Kunne ikke hente dagens værdata fra weather proxy");
+    throw new Error(`Failed to fetch today's data: ${res.status}`);
   }
   
   const data = await res.json();
-  console.log(`✅ [fetchTodayData] Successfully fetched data with ${data.forecast?.forecastday?.length || 0} forecast days`);
+  console.log(`✅ [fetchTodayData] Got ${data.forecast?.forecastday?.[0]?.hour?.length || 0} hourly data points`);
 
-  if (!data.forecast || !data.forecast.forecastday || data.forecast.forecastday.length === 0) {
-    throw new Error("Ugyldig data-struktur fra WeatherAPI.com");
+  if (!data.forecast?.forecastday?.[0]?.hour) {
+    throw new Error("No hourly data in response");
   }
 
-  const forecastDay = data.forecast.forecastday[0];
-  if (!forecastDay.hour) {
-    throw new Error("Ingen timebaserte data fra WeatherAPI.com");
-  }
-
-  const raw: Point[] = forecastDay.hour.map((hour: { time: string; temp_c: number }) => {
+  const hours = data.forecast.forecastday[0].hour;
+  const points: Point[] = [];
+  
+  for (const hour of hours) {
     try {
-      // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
-      // We need to extract just the time part (HH:MM)
-      let timeString;
-      if (hour.time.includes(' ')) {
-        // If hour.time contains space, extract just the time part
-        const timePart = hour.time.split(' ')[1]; // Get "00:00" part
-        timeString = `${dateStr}T${timePart}`;
-      } else {
-        // If hour.time is just "00:00", use it directly
-        timeString = `${dateStr}T${hour.time}`;
+      // Parse time from "2025-09-01 00:00" format
+      const timeStr = hour.time;
+      const timePart = timeStr.split(' ')[1]; // Get "00:00" part
+      const fullTimeStr = `${dateStr}T${timePart}`;
+      const parsedTime = new Date(fullTimeStr);
+      
+      if (isNaN(parsedTime.getTime())) {
+        console.error(`❌ Invalid time: ${fullTimeStr}`);
+        continue;
       }
       
-      const parsedTime = new Date(timeString);
+      points.push({
+        time: parsedTime,
+        temp: hour.temp_c
+      });
       
-      // Debug: log the time parsing
-      if (!isNaN(parsedTime.getTime())) {
-        console.log(`🔍 [Today] Parsing time: "${timeString}" -> ${parsedTime.toISOString()}, valid: true`);
-        return {
-          time: parsedTime,
-          temp: hour.temp_c,
-        };
-      } else {
-        console.error(`❌ [Today] Invalid time format: "${timeString}" from hour:`, hour);
-        return null;
-      }
+      console.log(`✅ [fetchTodayData] Added: ${parsedTime.toISOString()} = ${hour.temp_c}°C`);
+      
     } catch (error) {
-      console.error(`❌ [Today] Error parsing time for hour:`, hour, 'Error:', error);
-      return null;
+      console.error(`❌ Error parsing hour:`, hour, error);
     }
-  }).filter(Boolean); // Remove null entries
-
-  // Return all of the target date's data (including past hours)
-  return raw.filter((p) => {
-    const pointDate = new Date(p.time);
-    pointDate.setHours(0, 0, 0, 0);
-    return pointDate.getTime() === targetDate.getTime();
-  });
+  }
+  
+  console.log(`🎯 [fetchTodayData] Total points for today: ${points.length}`);
+  return points;
 }
 
 // Cache for API calls to avoid rate limiting
@@ -455,34 +531,61 @@ async function fetchRealTemperatureData(lat: number, lon: number, loggerStartTim
     
     const temperatureData: Point[] = [];
     
-    // With WeatherAPI.com, we can fetch historical data up to the current hour
-    // So we fetch from start time up to the current hour
-    const currentHour = new Date(now);
-    currentHour.setMinutes(0, 0, 0);
+    // For historical data, we need to fetch from start time up to YESTERDAY ONLY
+    // This ensures we get ALL hours from start time to the end of yesterday
+    // We do NOT call fetchHistory for today's date - that's handled by fetchTodayData
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(23, 59, 59, 999);
     
-    if (from < currentHour) {
-      console.log(`📅 Fetching historical data from ${from.toISOString()} to ${currentHour.toISOString()}`);
+    console.log(`🔍 [fetchRealTemperatureData] Debug: from=${from.toISOString()}, yesterday=${yesterday.toISOString()}, today=${today.toISOString()}, from < today = ${from < today}`);
+    
+    // Only fetch historical data if the start time is before today
+    if (from < today) {
+      // Ensure we don't fetch beyond yesterday - NEVER fetch today's data via history API
+      const historicalEndTime = yesterday;
       
-      const historicalData = await fetchHistory(lat, lon, from, currentHour);
+      console.log(`🚨 [CRITICAL] About to call fetchHistory with: from=${from.toISOString()}, to=${historicalEndTime.toISOString()}`);
+      console.log(`🚨 [CRITICAL] This should NEVER include today's date!`);
+      
+      const historicalData = await fetchHistory(lat, lon, from, historicalEndTime);
       temperatureData.push(...historicalData);
       console.log(`✅ Fetched ${historicalData.length} historical temperature points`);
+      
+      // Debug: show what hours we got
+      if (historicalData.length > 0) {
+        const hours = historicalData.map(p => p.time.toISOString()).slice(0, 5);
+        console.log(`🔍 [fetchRealTemperatureData] Sample historical hours: ${hours.join(', ')}...`);
+      }
     } else {
-      console.log(`📅 Logger started too recently (${from.toISOString()}), no historical data needed`);
+      console.log(`📅 Logger started today (${from.toISOString()}), no historical data needed - will use today's data only`);
     }
     
-    // Get today's data (including past hours) to fill any remaining gaps
-    console.log(`📅 Fetching today's data to fill remaining gaps`);
+    // For TODAY's data, we MUST use the forecast API (forecast.forecastday[0].hour)
+    // This gives us ALL hours from 00:00 to 23:00 for today, including past hours
+    console.log(`📅 Fetching today's data using forecast API (forecast.forecastday[0].hour)`);
     
-    const todayData = await fetchTodayData(lat, lon);
-    
-    // Include data up to and including current hour to avoid gaps
-    const filteredTodayData = todayData.filter(point => point.time <= currentHour);
-    
-    console.log(`📅 Current time: ${now.toISOString()}, Current hour: ${currentHour.toISOString()}`);
-    console.log(`📊 Today's data points: ${todayData.length}, Filtered to current hour: ${filteredTodayData.length}`);
-    
-    temperatureData.push(...filteredTodayData);
-    console.log(`✅ Fetched ${filteredTodayData.length} today's temperature points`);
+    try {
+      const todayData = await fetchTodayData(lat, lon);
+      console.log(`✅ Fetched ${todayData.length} today's temperature points using forecast API`);
+      
+      // CRITICAL FIX: Separate today's data into historical (past) and forecast (future)
+      const now = new Date();
+      const currentHour = new Date(now);
+      currentHour.setMinutes(0, 0, 0);
+      
+      // Only add PAST hours from today to temperatureData (these will be historical)
+      const pastHoursFromToday = todayData.filter(point => point.time <= currentHour);
+      temperatureData.push(...pastHoursFromToday);
+      
+      console.log(`✅ Added ${pastHoursFromToday.length} past hours from today to historical data`);
+      console.log(`📊 Today's data breakdown: ${pastHoursFromToday.length} past hours + ${todayData.length - pastHoursFromToday.length} future hours`);
+    } catch (error) {
+      console.error('❌ Error fetching today\'s data:', error);
+      // Don't fail completely if today's data fails
+    }
     
     console.log(`✅ Total: ${temperatureData.length} temperature points from ${from.toISOString()} to ${now.toISOString()}`);
     
@@ -502,8 +605,26 @@ async function fetchHistory(
   from: Date,
   to: Date
 ): Promise<Point[]> {
+  // HARD STOP: Never process today's date
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const fromStr = from.toISOString().slice(0, 10);
+  const toStr = to.toISOString().slice(0, 10);
+  
+  if (fromStr === todayStr || toStr === todayStr) {
+    console.log(`🚨 [fetchHistory] HARD STOP: Date range includes today (${fromStr} to ${toStr}) - returning empty array`);
+    return [];
+  }
+  
   try {
-    const cacheKey = `weatherapi_${lat},${lon},${from.toISOString().slice(0, 10)},${to.toISOString().slice(0, 10)}`;
+    // Use the already declared variables
+    let cacheKey: string;
+    // If any date in the range is today, don't use cache
+    if (fromStr === todayStr || toStr === todayStr) {
+      console.log(`🚨 [fetchHistory] Cache bypass: date range includes today (${fromStr} to ${toStr})`);
+      cacheKey = `weatherapi_${lat},${lon},${fromStr},${toStr}_NO_CACHE_${Date.now()}`;
+    } else {
+      cacheKey = `weatherapi_${lat},${lon},${fromStr},${toStr}`;
+    }
     const now = Date.now();
     
     // Check cache first
@@ -529,8 +650,29 @@ async function fetchHistory(
     const points: Point[] = [];
     const currentDate = new Date(from);
     
+    console.log(`🔍 [fetchHistory] Debug: from=${from.toISOString()}, to=${to.toISOString()}, currentDate=${currentDate.toISOString()}`);
+    console.log(`🔍 [fetchHistory] Will fetch data for dates: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`);
+    
     while (currentDate <= to) {
       const dateStr = currentDate.toISOString().slice(0, 10);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      
+      console.log(`🚨 [fetchHistory] Processing date: ${dateStr}, today: ${todayStr}, should skip: ${dateStr === todayStr}`);
+      
+      // NEVER call history API for today's date - use forecast API instead
+      if (dateStr === todayStr) {
+        console.log(`⚠️ [fetchHistory] Skipping today's date ${dateStr} - should use forecast API instead`);
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
+      // Double-check: if somehow we're still processing today, skip it
+      if (dateStr === new Date().toISOString().slice(0, 10)) {
+        console.log(`🚨 [fetchHistory] EMERGENCY: Still processing today's date ${dateStr} - forcing skip`);
+        currentDate.setDate(currentDate.getDate() + 1);
+        continue;
+      }
+      
       const url = `/api/weather?type=history&lat=${lat}&lon=${lon}&date=${dateStr}`;
       
       console.log(`🌍 Fetching historical data from WeatherAPI.com for date: ${dateStr}`);
@@ -572,7 +714,7 @@ async function fetchHistory(
         continue;
       }
       
-      // Extract hourly temperature data
+      // Extract hourly temperature data, but only for hours within the from-to range
       const hourlyData = forecastDay.hour.map((hour: { time: string; temp_c: number }) => {
         try {
           // WeatherAPI.com returns hour.time as "2025-08-31 00:00" format
@@ -589,9 +731,15 @@ async function fetchHistory(
           
           const parsedTime = new Date(timeString);
           
+          // Only include hours that fall within the from-to range
+          if (parsedTime < from || parsedTime > to) {
+            console.log(`🔍 [fetchHistory] Filtering out hour ${parsedTime.toISOString()} - outside range ${from.toISOString()} to ${to.toISOString()}`);
+            return null;
+          }
+          
           // Debug: log the time parsing
           if (!isNaN(parsedTime.getTime())) {
-            console.log(`🔍 Parsing time: "${timeString}" -> ${parsedTime.toISOString()}, valid: true`);
+            console.log(`🔍 Parsing time: "${timeString}" -> ${parsedTime.toISOString()}, valid: true, within range: ${from.toISOString()} to ${to.toISOString()}`);
             return {
               time: parsedTime,
               temp: hour.temp_c,
@@ -908,8 +1056,8 @@ export default function ImprovedMorningTab() {
                 {
                   id: Date.now() + Math.random() + "",
                   name: newName.trim(),
-                  lat: 59.91, // Elghytta coordinates
-                  lng: 10.75,
+                  lat: 60.724910757831324, // Updated coordinates
+                  lng: 9.036607371747797,
                   target: 40,
                   offset: 0,
                   dayOffset: 0,
@@ -918,7 +1066,11 @@ export default function ImprovedMorningTab() {
                   dataTable: [],
                   accumulatedDG: 0,
                   isRunning: false,
-                  startTime: customStartTime ? new Date(customStartTime) : undefined,
+                  startTime: customStartTime ? new Date(customStartTime) : (() => {
+                    const now = new Date();
+                    now.setMinutes(0, 0, 0);
+                    return now;
+                  })(),
                 },
               ]);
               setNewName("");
@@ -1037,6 +1189,67 @@ function LoggerCard({
   const [estimatedFinish, setEstimatedFinish] = useState<Date | undefined>();
   const [loading, setLoading] = useState(false);
 
+  // Function to refresh dataTable classification (forecast -> historical as time progresses)
+  function refreshDataTableClassification() {
+    if (!logger.dataTable || logger.dataTable.length === 0) {
+      return;
+    }
+
+    console.log(`🔄 [refreshDataTableClassification] Refreshing data classification for ${logger.name}`);
+    
+    const now = new Date();
+    const currentHour = new Date(now);
+    currentHour.setMinutes(0, 0, 0);
+    
+    let hasChanges = false;
+    
+    const updatedDataTable = logger.dataTable.map(point => {
+      const timestamp = point.timestamp instanceof Date ? point.timestamp : new Date(point.timestamp);
+      
+      // Reclassify based on current time
+      const isToday = timestamp.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
+      const isHistorical = isToday ? timestamp <= currentHour : timestamp < now;
+      const isForecast = isToday ? timestamp > currentHour : timestamp >= now;
+      
+      // Check if classification needs to change
+      const wasHistorical = point.tempLogg !== null;
+      const wasForecast = point.tempEst !== null;
+      
+      let newTempLogg = point.tempLogg;
+      let newTempEst = point.tempEst;
+      
+      if (isHistorical && !wasHistorical) {
+        // This point is now historical but was forecast
+        newTempLogg = point.tempEst;
+        newTempEst = null;
+        hasChanges = true;
+        console.log(`🔄 [refreshDataTableClassification] Moving ${timestamp.toISOString()} from forecast to historical`);
+      } else if (isForecast && !wasForecast) {
+        // This point is now forecast but was historical (shouldn't happen, but just in case)
+        newTempEst = point.tempLogg;
+        newTempLogg = null;
+        hasChanges = true;
+        console.log(`🔄 [refreshDataTableClassification] Moving ${timestamp.toISOString()} from historical to forecast`);
+      }
+      
+      return {
+        ...point,
+        tempLogg: newTempLogg,
+        tempEst: newTempEst
+      };
+    });
+    
+    if (hasChanges) {
+      console.log(`✅ [refreshDataTableClassification] Updated dataTable classification for ${logger.name}`);
+      setLoggers(loggers => loggers.map(x => x.id === logger.id ? { 
+        ...x, 
+        dataTable: updatedDataTable
+      } : x));
+    } else {
+      console.log(`ℹ️ [refreshDataTableClassification] No classification changes needed for ${logger.name}`);
+    }
+  }
+
 
 
   // Opprett dataTable når loggeren starter (startTime settes) eller når dataTable mangler
@@ -1119,6 +1332,17 @@ function LoggerCard({
             temp: p.temp
           })));
           
+          // CRITICAL DEBUG: Show all today's data points
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const todayData = allData.filter(p => p.time >= today);
+          console.log('🔍 [CRITICAL DEBUG] Today\'s data points:', todayData.map(p => ({
+            time: p.time.toISOString(),
+            temp: p.temp,
+            hour: p.time.getHours(),
+            isPast: p.time < new Date()
+          })));
+          
           // Calculate estimated finish time
           let cumDG = 0;
           let estimatedFinish: Date | undefined;
@@ -1156,29 +1380,40 @@ function LoggerCard({
           console.log(`🔍 [createDataTableOnStart] Final cumDG: ${cumDG.toFixed(3)} DG, target: ${logger.target} DG, targetReached: ${targetReached}`);
           
           // Create dataTable with combined data
-          allData.forEach(point => {
+          console.log(`🔍 [DEBUG] Processing ${allData.length} data points for dataTable`);
+          
+          allData.forEach((point, index) => {
             const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
             
+            // Stop adding data 12 hours after target DG is reached
             if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
+              console.log(`🔍 [DEBUG] Skipping point ${index}: ${point.time.toISOString()} - too far after target`);
               return;
             }
             
-            // Determine if this is historical data, today's data, or forecast data
+            // Classification: past hours = historical, current hour and future = forecast
             const now = new Date();
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
-            const pointDate = new Date(point.time);
-            pointDate.setHours(0, 0, 0, 0);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const isHistorical = pointDate.getTime() < today.getTime();
-            const isTodayData = pointDate.getTime() === today.getTime() && point.time <= currentHour;
-    
             
-            // For new loggers, we want to show forecast data for future hours to enable DG estimation
-            // So we'll use tempEst for future hours and tempLogg for past/current hours
-            // But we need to be more generous with what we consider "forecast" data
-            const isFutureHour = point.time > currentHour;
+            // CRITICAL FIX: For today's data, include current hour in historical to fill the gap
+            const isToday = point.time.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
+            const isHistorical = isToday ? point.time <= currentHour : point.time < now;
+            const isForecast = isToday ? point.time > currentHour : point.time >= now;
+            
+            // Set temperatures correctly with current hour as transition point
+            let tempLogg = null;
+            let tempEst = null;
+            
+            // Current hour gets special treatment - both graphs meet here
+            if (point.time.getTime() === currentHour.getTime()) {
+              tempLogg = point.temp;  // Historical graph extends to current hour
+              tempEst = point.temp;   // Forecast graph starts from current hour
+            } else if (isHistorical) {
+              tempLogg = point.temp;  // Past hours only
+            } else if (isForecast) {
+              tempEst = point.temp;   // Future hours only
+            }
             
             // Ensure runtime is valid for DG calculation
             const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
@@ -1186,8 +1421,8 @@ function LoggerCard({
             dataTable.push({
               timestamp: floorToHour(point.time),
               runtime: validRuntime,
-              tempEst: isFutureHour ? point.temp : null, // All future hours have tempEst for DG estimation
-              tempLogg: (isHistorical || isTodayData) ? point.temp : null // Historical and today's data has tempLogg
+              tempEst: tempEst,
+              tempLogg: tempLogg
             });
           });
           
@@ -1196,33 +1431,30 @@ function LoggerCard({
           // For existing loggers (started before today), combine historical + forecast data
           console.log('📊 Existing logger - combining historical + forecast data');
           
-          // Get historical data from start time to now (current time) - to get all recent hours
-          const now = new Date();
-          
-          let historicalData: Point[] = [];
+          // For existing loggers, we need to get ALL data from start time to now
+          // Use fetchRealTemperatureData to get historical + today's data, then add forecast
+          let realData: Point[] = [];
           try {
-            console.log(`🔍 [fetchHistory] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}, from: ${logger.startTime!.toISOString()}, to: ${now.toISOString()}`);
-            historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime!, now);
-            console.log(`✅ Historical data: ${historicalData.length} points from ${logger.startTime!.toISOString()} to ${now.toISOString()}`);
+            console.log(`🔍 [fetchRealTemperatureData] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}, startTime: ${logger.startTime}`);
+            realData = await fetchRealTemperatureData(logger.lat, logger.lng, logger.startTime);
+            console.log(`✅ Real temperature data for existing logger: ${realData.length} points`);
           } catch (error) {
-            console.error('❌ Error fetching historical data:', error);
+            console.error('❌ Error fetching real temperature data:', error);
             console.error('❌ Error details:', {
               message: error instanceof Error ? error.message : 'Unknown error',
               stack: error instanceof Error ? error.stack : 'No stack trace',
               lat: logger.lat,
-              lon: logger.lng,
-              from: logger.startTime!.toISOString(),
-              to: now.toISOString()
+              lon: logger.lng
             });
-            historicalData = [];
+            realData = [];
           }
           
-          // Get forecast data from today onwards
+          // Get forecast data from next hour onwards
           let forecast: Point[] = [];
           try {
             console.log(`🔍 [fetchForecast] Starting API call for lat: ${logger.lat}, lon: ${logger.lng}`);
             forecast = await fetchForecast(logger.lat, logger.lng);
-            console.log(`✅ Forecast data: ${forecast.length} points from today onwards`);
+            console.log(`✅ Forecast data: ${forecast.length} points from next hour onwards`);
           } catch (error) {
             console.error('❌ Error fetching forecast data:', error);
             console.error('❌ Error details:', {
@@ -1234,9 +1466,28 @@ function LoggerCard({
             forecast = [];
           }
           
-          // Combine historical and forecast data
-          const allData = [...historicalData, ...forecast];
-          console.log(`📊 Combined data: ${allData.length} total points`);
+          // Combine real data and forecast data
+          const allData = [...realData, ...forecast];
+          console.log(`📊 Combined data: ${allData.length} total points (real: ${realData.length}, forecast: ${forecast.length})`);
+          
+          // Debug: show what hours we have
+          console.log(`🔍 [DEBUG] Sample data points:`, allData.slice(0, 10).map(p => ({
+            time: p.time.toISOString(),
+            temp: p.temp,
+            date: p.time.toISOString().slice(0, 10),
+            hour: p.time.getHours()
+          })));
+          
+          // CRITICAL DEBUG: Show all today's data points
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const todayData = allData.filter(p => p.time >= today);
+          console.log('🔍 [CRITICAL DEBUG] Today\'s data points:', todayData.map(p => ({
+            time: p.time.toISOString(),
+            temp: p.temp,
+            hour: p.time.getHours(),
+            isPast: p.time < new Date()
+          })));
           
           // Calculate estimated finish time using combined data
           let cumDG = 0;
@@ -1268,40 +1519,72 @@ function LoggerCard({
             
             if (targetReached) {
               hoursAfterTarget++;
-              if (hoursAfterTarget >= 12) break;
+              if (hoursAfterTarget >= 12) break; // Stop 12 hours after target
             }
           }
           
           console.log(`🔍 [createDataTableOnStart] Final cumDG: ${cumDG.toFixed(3)} DG, target: ${logger.target} DG, targetReached: ${targetReached}`);
           
           // Create dataTable with combined data
-          allData.forEach(point => {
+          console.log(`🔍 [createDataTableOnStart] Processing ${allData.length} data points for dataTable`);
+          console.log(`🔍 [createDataTableOnStart] Logger start time: ${logger.startTime?.toISOString()}`);
+          
+          allData.forEach((point, index) => {
             const runtime = Math.floor((point.time.getTime() - logger.startTime!.getTime()) / (1000 * 60 * 60));
             
+            // Stop adding data 12 hours after target DG is reached
             if (estimatedFinish && point.time > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
+              console.log(`🔍 [createDataTableOnStart] Skipping point ${index}: ${point.time.toISOString()} - too far after target`);
               return;
             }
             
-            // Determine if this is historical or forecast data
-            const isHistorical = point.time <= now;
+            // Classification: past hours = historical, current hour and future = forecast
+            const now = new Date();
             const currentHour = new Date(now);
             currentHour.setMinutes(0, 0, 0);
             
-            // All data that is not historical should be treated as forecast
-            // This includes today's data and future data
-            const isForecast = !isHistorical;
+            // CRITICAL FIX: For today's data, include current hour in historical to fill the gap
+            const isToday = point.time.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
+            const isHistorical = isToday ? point.time <= currentHour : point.time < now;
+            const isForecast = isToday ? point.time > currentHour : point.time >= now;
+            
+            // Debug: log today's data points
+            if (point.time.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+              console.log(`🔍 [DEBUG] Today's data: ${point.time.toISOString()} = ${point.temp}°C, isHistorical: ${isHistorical}, isForecast: ${isForecast}`);
+            }
+            
+            console.log(`🔍 [createDataTableOnStart] Point ${index}: ${point.time.toISOString()}, temp=${point.temp}, runtime=${runtime}h, isHistorical=${isHistorical}, isForecast=${isForecast}`);
             
             // For historical data, we need to handle runtime differently
             // Historical data should show tempLogg for past hours, tempEst for future hours
             // But we need to ensure runtime is valid for DG calculation
             const validRuntime = point.time >= logger.startTime! ? Math.max(0, runtime) : 0;
             
+            // Set temperatures correctly with current hour as transition point
+            let tempLogg = null;
+            let tempEst = null;
+            
+            // Current hour gets special treatment - both graphs meet here
+            if (point.time.getTime() === currentHour.getTime()) {
+              tempLogg = point.temp;  // Historical graph extends to current hour
+              tempEst = point.temp;   // Forecast graph starts from current hour
+            } else if (isHistorical) {
+              tempLogg = point.temp;  // Past hours only
+            } else if (isForecast) {
+              tempEst = point.temp;   // Future hours only
+            }
+            
             dataTable.push({
-              timestamp: point.time, // Use exact time, not floorToHour
+              timestamp: floorToHour(point.time), // Use floorToHour for consistency
               runtime: validRuntime,
-              tempEst: isForecast ? point.temp : null, // All non-historical hours have tempEst for DG estimation
-              tempLogg: isHistorical ? point.temp : null // Historical data has tempLogg
+              tempEst: tempEst,
+              tempLogg: tempLogg
             });
+            
+            // Debug: log what was added
+            if (point.time.toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)) {
+              console.log(`🔍 [DEBUG] Added to dataTable: ${point.time.toISOString()} = ${point.temp}°C, tempLogg: ${isHistorical ? point.temp : 'null'}, tempEst: ${isForecast ? point.temp : 'null'}`);
+            }
           });
           
           setEstimatedFinish(estimatedFinish);
@@ -1314,7 +1597,16 @@ function LoggerCard({
             const periodOffset = getOffsetForTime(point.timestamp, logger.dayOffset, logger.nightOffset);
             const adjustedTemp = point.tempLogg + periodOffset;
             const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
-            totalAccumulatedDG += dgHour / 24;
+            
+            // If this hour has both tempLogg and tempEst (current hour), divide by 2 to avoid double-counting
+            const isCurrentHour = point.tempEst !== null && point.tempLogg !== null;
+            const dgMultiplier = isCurrentHour ? 0.5 : 1.0;
+            
+            totalAccumulatedDG += (dgHour / 24) * dgMultiplier;
+            
+            if (isCurrentHour) {
+              console.log(`🔍 [DG Calculation] Current hour ${point.timestamp.toISOString()}: temp=${point.tempLogg}°C, dgHour=${dgHour.toFixed(3)}, divided by 2 to avoid double-counting`);
+            }
           }
         }
         
@@ -1365,8 +1657,11 @@ function LoggerCard({
   // Beregn estimatedFinish når dataTable endres (for eksisterende logger)
   useEffect(() => {
     if (!logger.dataTable || logger.dataTable.length === 0 || !logger.startTime) {
+      console.log(`🔍 [estimatedFinish useEffect] Skipping calculation: dataTable=${logger.dataTable?.length}, startTime=${logger.startTime?.toLocaleString()}`);
       return;
     }
+    
+    console.log(`🔍 [estimatedFinish useEffect] Recalculating for logger ${logger.name} with offsets: day=${logger.dayOffset}, night=${logger.nightOffset}, base=${logger.baseTemp}`);
     
     // Beregn estimatedFinish fra eksisterende dataTable
     // Sjekk både historiske data (tempLogg) og forecast data (tempEst)
@@ -1377,11 +1672,11 @@ function LoggerCard({
       if (point.runtime > 0) {
         let temp: number | null = null;
         
-        // Prioritér historiske data hvis tilgjengelig, ellers bruk forecast
-        if (point.tempLogg !== null) {
-          temp = point.tempLogg;
-        } else if (point.tempEst !== null) {
+        // Prioritér forecast data hvis tilgjengelig, ellers bruk historiske data
+        if (point.tempEst !== null) {
           temp = point.tempEst;
+        } else if (point.tempLogg !== null) {
+          temp = point.tempLogg;
         }
         
         if (temp !== null) {
@@ -1389,6 +1684,8 @@ function LoggerCard({
           const adjustedTemp = temp + periodOffset;
           const dgHour = Math.max(0, adjustedTemp - logger.baseTemp);
           cumDG += dgHour / 24;
+          
+          console.log(`🔍 [estimatedFinish] Point: ${point.timestamp.toLocaleString()}, temp: ${temp}°C, offset: ${periodOffset}°C, adjusted: ${adjustedTemp}°C, dgHour: ${dgHour.toFixed(3)}, cumDG: ${cumDG.toFixed(3)}`);
           
           if (cumDG >= logger.target && !estimatedFinish) {
             estimatedFinish = point.timestamp;
@@ -1399,6 +1696,7 @@ function LoggerCard({
       }
     }
     
+    console.log(`🔍 [estimatedFinish useEffect] Final result: estimatedFinish=${estimatedFinish?.toLocaleString() || 'undefined'}, cumDG=${cumDG.toFixed(3)}, target=${logger.target}`);
     setEstimatedFinish(estimatedFinish);
   }, [logger.dataTable, logger.startTime, logger.target, logger.dayOffset, logger.nightOffset, logger.baseTemp, logger.id]);
 
@@ -1428,6 +1726,9 @@ function LoggerCard({
         const success = await updateRealTemperatureData();
         if (success) {
           console.log(`✅ [updateRealLog] Successfully updated real temperature data for ${logger.name}`);
+          
+          // Also refresh the dataTable classification to move forecast data to historical as time progresses
+          refreshDataTableClassification();
         } else {
           console.log(`❌ [updateRealLog] Failed to update real temperature data for ${logger.name}`);
         }
@@ -1435,6 +1736,8 @@ function LoggerCard({
         console.error("Feil ved oppdatering av reell logg:", err);
       }
     }
+
+
 
     // Kjør umiddelbart for eksisterende logger
     updateRealLog();
@@ -1445,6 +1748,23 @@ function LoggerCard({
       return () => clearInterval(interval);
     }
   }, [logger.isRunning, logger.id, logger.startTime, logger.dataTable?.length, lastRefreshTime, updateRealTemperatureData, logger.name]);
+
+  // Periodically refresh dataTable classification to move forecast data to historical as time progresses
+  useEffect(() => {
+    if (!logger.dataTable || logger.dataTable.length === 0) {
+      return;
+    }
+
+    // Refresh classification immediately
+    refreshDataTableClassification();
+    
+    // Set up interval to refresh classification every hour
+    const classificationInterval = setInterval(() => {
+      refreshDataTableClassification();
+    }, 60 * 60 * 1000); // Every hour
+    
+    return () => clearInterval(classificationInterval);
+  }, [logger.dataTable, logger.id]);
 
 
 
@@ -1510,13 +1830,16 @@ function LoggerCard({
           {logger.isRunning ? '⏸️ Pause' : '▶️ Start'}
         </button>
 
-        {/* Debug: Custom Start Time */}
+        {/* Start Time Selection */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '12px' }}>
-          <span style={{ color: '#666' }}>Debug Start:</span>
+          <span style={{ color: '#666' }}>Start tid:</span>
           <input
             type="date"
             value={(() => {
-              if (!logger.startTime) return '';
+              if (!logger.startTime) {
+                const now = new Date();
+                return now.toISOString().split('T')[0];
+              }
               const date = new Date(logger.startTime);
               return date.toISOString().split('T')[0];
             })()}
@@ -1539,7 +1862,10 @@ function LoggerCard({
           <input
             type="time"
             value={(() => {
-              if (!logger.startTime) return '12:00';
+              if (!logger.startTime) {
+                const now = new Date();
+                return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+              }
               const date = new Date(logger.startTime);
               return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
             })()}
@@ -1560,84 +1886,9 @@ function LoggerCard({
               width: '70px'
             }}
           />
-          <button
-            onClick={() => {
-              // Reset to current time
-              const now = new Date();
-              now.setMinutes(0, 0, 0);
-              console.log(`🔧 [Debug] Resetting start time to current time for ${logger.name}: ${now.toLocaleString()}`);
-              setLoggers(loggers => loggers.map(x => x.id === logger.id ? { ...x, startTime: now } : x));
-            }}
-            style={{
-              fontSize: '10px',
-              padding: '2px 6px',
-              background: '#f0f0f0',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Reset
-          </button>
-          <button
-            onClick={async () => {
-              if (logger.startTime) {
-                console.log(`🔄 [Debug] Regenerating dataTable for ${logger.name} with start time: ${logger.startTime.toLocaleString()}`);
-                // Trigger regeneration of dataTable
-                setLoggers(loggers => loggers.map(x => x.id === logger.id ? { ...x, dataTable: [] } : x));
-                // The useEffect will automatically regenerate the dataTable
-              }
-            }}
-            style={{
-              fontSize: '10px',
-              padding: '2px 6px',
-              background: '#e0f0ff',
-              border: '1px solid #b2d8ff',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-            title="Regenerate dataTable with new start time"
-          >
-            🔄
-          </button>
-          <button
-            onClick={async () => {
-              if (logger.startTime) {
-                console.log(`🧪 [Debug] Testing API calls for ${logger.name}`);
-                try {
-                  // Test historical data
-                  const historicalData = await fetchHistory(logger.lat, logger.lng, logger.startTime, new Date());
-                  console.log(`📊 [API Test] Historical data: ${historicalData.length} points`);
-                  console.log(`📊 [API Test] Sample historical:`, historicalData.slice(0, 3).map(p => ({
-                    time: p.time.toISOString(),
-                    temp: p.temp
-                  })));
-                  
-                  // Test forecast data
-                  const forecastData = await fetchForecast(logger.lat, logger.lng);
-                  console.log(`🔮 [API Test] Forecast data: ${forecastData.length} points`);
-                  console.log(`🔮 [API Test] Sample forecast:`, forecastData.slice(0, 3).map(p => ({
-                    time: p.time.toISOString(),
-                    temp: p.temp
-                  })));
-                } catch (error) {
-                  console.error('❌ [API Test] Error:', error);
-                }
-              }
-            }}
-            style={{
-              fontSize: '10px',
-              padding: '2px 6px',
-              background: '#fff3cd',
-              border: '1px solid #ffeaa7',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              marginLeft: '4px'
-            }}
-            title="Test API calls directly"
-          >
-            🧪
-          </button>
+
+
+
 
         </div>
 
@@ -1705,78 +1956,7 @@ function LoggerCard({
 
 
 
-      {/* Debug Table - Show Historical and Forecast Data */}
-      {logger.startTime && (
-        <div style={{ 
-          marginBottom: 12, 
-          padding: '8px 12px', 
-          background: '#fff3cd', 
-          borderRadius: 6, 
-          border: '1px solid #ffeaa7',
-          fontSize: 12
-        }}>
-          <h4 style={{ margin: '0 0 8px 0', color: '#856404' }}>🔍 Debug: API Data</h4>
-          <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-              <thead style={{ position: 'sticky', top: 0, background: '#f8f9fa' }}>
-                <tr>
-                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Tidspunkt</th>
-                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Runtime</th>
-                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Historisk</th>
-                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Forecast</th>
-                  <th style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'left' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logger.dataTable && logger.dataTable.length > 0 ? (
-                  logger.dataTable.slice(0, 100).map((point, index) => {
-                    const isHistorical = point.tempLogg !== null;
-                    const isForecast = point.tempEst !== null;
-                    let status = '❌ Ingen';
-                    if (isHistorical && isForecast) status = '📊 Begge';
-                    else if (isHistorical) status = '🌡️ Historisk';
-                    else if (isForecast) status = '🔮 Estimert';
-                    
-                    return (
-                      <tr key={index} style={{ background: index % 2 === 0 ? '#f8f9fa' : 'white' }}>
-                        <td style={{ padding: '4px', border: '1px solid #ddd' }}>
-                          {point.timestamp.toLocaleString('nb-NO', { 
-                            month: 'numeric', 
-                            day: 'numeric', 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                        </td>
-                        <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'center' }}>
-                          {point.runtime}h
-                        </td>
-                        <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'center' }}>
-                          {point.tempLogg !== null ? point.tempLogg.toFixed(1) : 'null'}
-                        </td>
-                        <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'center' }}>
-                          {point.tempEst !== null ? point.tempEst.toFixed(1) : 'null'}
-                        </td>
-                        <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'center' }}>
-                          {status}
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={5} style={{ padding: '8px', textAlign: 'center', color: '#666' }}>
-                      Ingen data tilgjengelig. Debug: dataTable={logger.dataTable?.length || 0}, startTime={logger.startTime?.toLocaleString()}, isRunning={logger.isRunning}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ marginTop: '8px', fontSize: '10px', color: '#666' }}>
-            Viser {Math.min(100, logger.dataTable?.length || 0)} av {logger.dataTable?.length || 0} datapunkter
-          </div>
-        </div>
-      )}
+
 
       {/* Estimated Finish and Current Time */}
       <div style={{ 
@@ -1895,10 +2075,20 @@ function LoggerCard({
                 
                 console.log(`📊 Total historical DG: ${totalHistoricalDG.toFixed(2)}`);
                 
-                // Filter out points before startTime to ensure chart starts at the right point
-                const filteredDataTable = logger.dataTable.filter(point => 
-                  logger.startTime ? point.timestamp >= logger.startTime : true
-                );
+                // Filter out points before startTime and after target DG (12 hours after estimatedFinish)
+                const filteredDataTable = logger.dataTable.filter(point => {
+                  // Must be after start time
+                  if (logger.startTime && point.timestamp < logger.startTime) {
+                    return false;
+                  }
+                  
+                  // Don't show data after target DG is reached (12 hours after estimatedFinish)
+                  if (estimatedFinish && point.timestamp > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
+                    return false;
+                  }
+                  
+                  return true;
+                });
                 
                 const chartData = filteredDataTable.map(point => {
                   try {
@@ -1935,7 +2125,10 @@ function LoggerCard({
                       // Vis forecast for alle fremtidige timer (fra nåværende time og framover)
                       Estimat: (logger.startTime && timestamp >= logger.startTime && point.tempEst !== null) ? (totalHistoricalDG + cumEstimatDG) : null,
                       // Kun vis reell DG hvis vi faktisk har tempLogg data og tidspunktet er etter start
-                      Reell: (logger.startTime && timestamp >= logger.startTime && point.tempLogg !== null) ? cumReellDG : null
+                      Reell: (logger.startTime && timestamp >= logger.startTime && point.tempLogg !== null) ? cumReellDG : null,
+                      // Add temperature data for tooltip display
+                      tempLogg: point.tempLogg,
+                      tempEst: point.tempEst
                     };
                   } catch (error) {
                     console.error('Error processing chart data point:', error, point);
@@ -2029,7 +2222,20 @@ function LoggerCard({
                     minute: "2-digit",
                   })
                 }
-                formatter={(v: number, name: string) => [`${v.toFixed(1)} DG`, name]}
+                formatter={(v: number, name: string, item: { payload?: { tempLogg?: number | null; tempEst?: number | null } }) => {
+                  const payload = item.payload;
+                  let tooltipText = `${v.toFixed(1)} DG`;
+                  
+                  // Add temperature information if available
+                  if (payload?.tempLogg !== null && payload?.tempLogg !== undefined) {
+                    tooltipText += ` | Historisk: ${payload.tempLogg.toFixed(1)}°C`;
+                  }
+                  if (payload?.tempEst !== null && payload?.tempEst !== undefined) {
+                    tooltipText += ` | Estimert: ${payload.tempEst.toFixed(1)}°C`;
+                  }
+                  
+                  return [tooltipText, name];
+                }}
               />
               <Legend />
               <Line

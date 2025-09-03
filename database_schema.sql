@@ -1,72 +1,127 @@
--- Create morning_loggers table for storing mørningsloggers
+-- Create morning_loggers table for storing logger data (only if it doesn't exist)
 CREATE TABLE IF NOT EXISTS morning_loggers (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   lat DOUBLE PRECISION NOT NULL,
   lng DOUBLE PRECISION NOT NULL,
-  target INTEGER NOT NULL DEFAULT 40,
-  temp_offset INTEGER NOT NULL DEFAULT 0,
-  day_offset INTEGER NOT NULL DEFAULT 0,
-  night_offset INTEGER NOT NULL DEFAULT 0,
-  base_temp INTEGER NOT NULL DEFAULT 0,
-  data_table JSONB DEFAULT '[]'::jsonb,
-  accumulated_dg DOUBLE PRECISION DEFAULT 0,
+  target DOUBLE PRECISION NOT NULL DEFAULT 40,
+  temp_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
+  day_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
+  night_offset DOUBLE PRECISION NOT NULL DEFAULT 0,
+  base_temp DOUBLE PRECISION NOT NULL DEFAULT 3,
+  data_table JSONB,
+  accumulated_dg DOUBLE PRECISION NOT NULL DEFAULT 0,
   last_fetched TIMESTAMP WITH TIME ZONE,
-  is_running BOOLEAN DEFAULT false,
+  is_running BOOLEAN NOT NULL DEFAULT false,
   start_time TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create maintenance_tasks table for storing vedlikeholdsoppgaver
-CREATE TABLE IF NOT EXISTS maintenance_tasks (
-  id TEXT PRIMARY KEY,
-  post_id INTEGER NOT NULL,
-  description TEXT NOT NULL,
-  tags TEXT[] DEFAULT '{}',
-  priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in-progress', 'completed')),
-  assigned_to TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  completed_at TIMESTAMP WITH TIME ZONE,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Add missing columns if they don't exist (safe to run multiple times)
+DO $$ 
+BEGIN
+  -- Add temp_offset column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'temp_offset') THEN
+    ALTER TABLE morning_loggers ADD COLUMN temp_offset DOUBLE PRECISION NOT NULL DEFAULT 0;
+  END IF;
+  
+  -- Add day_offset column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'day_offset') THEN
+    ALTER TABLE morning_loggers ADD COLUMN day_offset DOUBLE PRECISION NOT NULL DEFAULT 0;
+  END IF;
+  
+  -- Add night_offset column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'night_offset') THEN
+    ALTER TABLE morning_loggers ADD COLUMN night_offset DOUBLE PRECISION NOT NULL DEFAULT 0;
+  END IF;
+  
+  -- Add base_temp column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'base_temp') THEN
+    ALTER TABLE morning_loggers ADD COLUMN base_temp DOUBLE PRECISION NOT NULL DEFAULT 3;
+  END IF;
+  
+  -- Add data_table column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'data_table') THEN
+    ALTER TABLE morning_loggers ADD COLUMN data_table JSONB;
+  END IF;
+  
+  -- Add accumulated_dg column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'accumulated_dg') THEN
+    ALTER TABLE morning_loggers ADD COLUMN accumulated_dg DOUBLE PRECISION NOT NULL DEFAULT 0;
+  END IF;
+  
+  -- Add last_fetched column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'last_fetched') THEN
+    ALTER TABLE morning_loggers ADD COLUMN last_fetched TIMESTAMP WITH TIME ZONE;
+  END IF;
+  
+  -- Add is_running column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'is_running') THEN
+    ALTER TABLE morning_loggers ADD COLUMN is_running BOOLEAN NOT NULL DEFAULT false;
+  END IF;
+  
+  -- Add start_time column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'start_time') THEN
+    ALTER TABLE morning_loggers ADD COLUMN start_time TIMESTAMP WITH TIME ZONE;
+  END IF;
+  
+  -- Add created_at column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'created_at') THEN
+    ALTER TABLE morning_loggers ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+  END IF;
+  
+  -- Add updated_at column if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'updated_at') THEN
+    ALTER TABLE morning_loggers ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+  END IF;
+END $$;
 
--- Create global settings table for tracking last real update
-CREATE TABLE IF NOT EXISTS global_settings (
-  id TEXT PRIMARY KEY DEFAULT 'default',
-  last_real_update TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- Fix existing columns to use correct data types
+DO $$
+BEGIN
+  -- Change target column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'target' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN target TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change temp_offset column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'temp_offset' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN temp_offset TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change day_offset column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'day_offset' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN day_offset TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change night_offset column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'night_offset' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN night_offset TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change base_temp column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'base_temp' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN base_temp TYPE DOUBLE PRECISION;
+  END IF;
+  
+  -- Change accumulated_dg column to DOUBLE PRECISION if it's currently INTEGER
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'morning_loggers' AND column_name = 'accumulated_dg' AND data_type = 'integer') THEN
+    ALTER TABLE morning_loggers ALTER COLUMN accumulated_dg TYPE DOUBLE PRECISION;
+  END IF;
+END $$;
 
--- Insert default global settings
-INSERT INTO global_settings (id, last_real_update) 
-VALUES ('default', NOW()) 
-ON CONFLICT (id) DO NOTHING;
-
--- Create indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_morning_loggers_created_at ON morning_loggers(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_morning_loggers_is_running ON morning_loggers(is_running);
-CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_post_id ON maintenance_tasks(post_id);
-CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_status ON maintenance_tasks(status);
-CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_priority ON maintenance_tasks(priority);
-CREATE INDEX IF NOT EXISTS idx_maintenance_tasks_created_at ON maintenance_tasks(created_at DESC);
-
--- Enable Row Level Security (RLS)
+-- Enable Row Level Security (RLS) if not already enabled
 ALTER TABLE morning_loggers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE maintenance_tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE global_settings ENABLE ROW LEVEL SECURITY;
 
--- Create policies to allow all operations (for now - you can restrict this later)
-CREATE POLICY "Allow all operations on morning_loggers" ON morning_loggers
-  FOR ALL USING (true);
-
-CREATE POLICY "Allow all operations on maintenance_tasks" ON maintenance_tasks
-  FOR ALL USING (true);
-
-CREATE POLICY "Allow all operations on global_settings" ON global_settings
-  FOR ALL USING (true);
+-- Create policy only if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'morning_loggers' AND policyname = 'Allow all operations on morning_loggers') THEN
+    CREATE POLICY "Allow all operations on morning_loggers" ON morning_loggers
+      FOR ALL USING (true);
+  END IF;
+END $$;
 
 -- Create function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -77,18 +132,18 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Create triggers to automatically update updated_at
-CREATE TRIGGER update_morning_loggers_updated_at 
-  BEFORE UPDATE ON morning_loggers 
-  FOR EACH ROW 
-  EXECUTE FUNCTION update_updated_at_column();
+-- Create trigger only if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_morning_loggers_updated_at') THEN
+    CREATE TRIGGER update_morning_loggers_updated_at 
+      BEFORE UPDATE ON morning_loggers 
+      FOR EACH ROW 
+      EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END $$;
 
-CREATE TRIGGER update_maintenance_tasks_updated_at 
-  BEFORE UPDATE ON maintenance_tasks 
-  FOR EACH ROW 
-  EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_global_settings_updated_at 
-  BEFORE UPDATE ON global_settings 
-  FOR EACH ROW 
-  EXECUTE FUNCTION update_updated_at_column();
+-- Create indexes only if they don't exist
+CREATE INDEX IF NOT EXISTS idx_morning_loggers_is_running ON morning_loggers(is_running);
+CREATE INDEX IF NOT EXISTS idx_morning_loggers_start_time ON morning_loggers(start_time);
+CREATE INDEX IF NOT EXISTS idx_morning_loggers_created_at ON morning_loggers(created_at);
