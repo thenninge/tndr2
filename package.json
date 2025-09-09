@@ -1,0 +1,34 @@
+{
+  "name": "tndr2",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.55.0",
+    "@types/leaflet": "^1.9.20",
+    "chart.js": "^4.4.1",
+    "express": "^5.1.0",
+    "leaflet": "^1.9.4",
+    "next": "15.4.6",
+    "node-fetch": "^3.3.2",
+    "react": "19.1.0",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "19.1.0",
+    "react-leaflet": "^5.0.0",
+    "recharts": "^2.15.4"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.4.6",
+    "typescript": "^5"
+  }
+}
