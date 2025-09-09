@@ -1672,6 +1672,8 @@ function LoggerCard({
     // Sjekk både historiske data (tempLogg) og forecast data (tempEst)
     let cumDG = 0;
     let estimatedFinish: Date | undefined;
+    let hoursAfterTarget = 0;
+    let targetReached = false;
     
     for (const point of logger.dataTable) {
       if (point.runtime > 0) {
@@ -1692,10 +1694,19 @@ function LoggerCard({
           
           console.log(`🔍 [estimatedFinish] Point: ${point.timestamp.toLocaleString()}, temp: ${temp}°C, offset: ${periodOffset}°C, adjusted: ${adjustedTemp}°C, dgHour: ${dgHour.toFixed(3)}, cumDG: ${cumDG.toFixed(3)}`);
           
-          if (cumDG >= logger.target && !estimatedFinish) {
+          if (cumDG >= logger.target && !targetReached) {
+            targetReached = true;
             estimatedFinish = point.timestamp;
             console.log(`🎯 [useEffect] Calculated estimatedFinish from dataTable: ${estimatedFinish.toLocaleString()}, cumDG: ${cumDG.toFixed(2)}`);
-            break;
+          }
+          
+          // Continue calculating for 12 hours after target to ensure we have enough data for the chart
+          if (targetReached) {
+            hoursAfterTarget++;
+            if (hoursAfterTarget >= 12) {
+              console.log(`🛑 [useEffect] Stopping calculation 12 hours after target reached`);
+              break;
+            }
           }
         }
       }
@@ -2088,12 +2099,15 @@ function LoggerCard({
                   }
                   
                   // Don't show data after target DG is reached (12 hours after estimatedFinish)
+                  // If estimatedFinish is not set, show all available data
                   if (estimatedFinish && point.timestamp > new Date(estimatedFinish.getTime() + 12 * 60 * 60 * 1000)) {
                     return false;
                   }
                   
                   return true;
                 });
+                
+                console.log(`🔍 [Chart] Filtering data: total points=${logger.dataTable.length}, filtered points=${filteredDataTable.length}, estimatedFinish=${estimatedFinish?.toLocaleString() || 'undefined'}`);
                 
                 const chartData = filteredDataTable.map(point => {
                   try {
@@ -2147,6 +2161,12 @@ function LoggerCard({
 
                 console.log('Chart data:', chartData.length, 'points');
                 console.log('First chart data point:', chartData[0]);
+                console.log('Last chart data point:', chartData[chartData.length - 1]);
+                
+                // Debug: Show the highest DG values
+                const maxEstimat = Math.max(...chartData.map(p => p.Estimat || 0));
+                const maxReell = Math.max(...chartData.map(p => p.Reell || 0));
+                console.log(`📊 Max DG values: Estimat=${maxEstimat.toFixed(2)}, Reell=${maxReell.toFixed(2)}, Target=${logger.target}`);
                 
                 // Debug: Sjekk om vi har reell DG data
                 const reellDataPoints = chartData.filter(point => point.Reell !== null);

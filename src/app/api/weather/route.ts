@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     
     switch (type) {
       case 'forecast':
-        url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${lat},${lon}&days=7&aqi=no`;
+        url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${lat},${lon}&days=10&aqi=no`;
         break;
       case 'today':
         url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${lat},${lon}&days=1&aqi=no`;
