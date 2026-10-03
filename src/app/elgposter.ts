@@ -45,7 +45,7 @@ export const ELGPOSTER = [
   { nr: 45, lat: 60.72886445067475, lng: 9.028918316432812, name: "Hogsten N.", omrade: "Strupen" },
   { nr: 46, lat: 60.72768222829885, lng: 9.029903798844312, name: "Hogsten S.", omrade: "Strupen" },
   { nr: 48, lat: 60.733341760971626, lng: 9.018617135356457, name: "Alex post", omrade: "Strupen" },
-  { nr: 49, lat: 60.71907769430199, lng: 9.028856745705884, name: "Vei ved toreberg", omrade: "Søndre" },
+  { nr: 49, lat: 60.71907769430199, lng: 9.028856745705884, name: "Torevei", omrade: "Søndre" },
   {
     nr: 50,
     name: "Olsen (gammel)",
