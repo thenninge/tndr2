@@ -31,7 +31,7 @@ export const ELGPOSTER = [
   { nr: 30, lat: 60.72382197547897, lng: 9.011986387116869, name: "Røyskar", omrade: "Røytjern" },
   { nr: 31, lat: 60.72220983227301, lng: 9.016561989486345, name: "Brattrensle", omrade: "Røytjern" },
   { nr: 32, lat: 60.71929896191361, lng: 9.017616185383595, name: "Nordbykryss", omrade: "Søndre" },
-  { nr: 33, lat: 60.716613608676106, lng: 9.017954044151331, name: "Langemyr", omrade: "Søndre" },
+  { nr: 33, lat: 60.716613608676106, lng: 9.017954044151331, name: "Leggemyr", omrade: "Søndre" },
   { nr: 34, lat: 60.71479666498177, lng: 9.006941162901041, name: "Tuppemyr", omrade: "Søndre" },
   { nr: 35, lat: 60.71747746642028, lng: 9.029731137080166, name: "Toreberg", omrade: "Søndre" },
   { nr: 36, lat: 60.71716188359707, lng: 9.035328689339924, name: "Toretjern", omrade: "Søndre" },
