@@ -42,8 +42,8 @@ export const ELGPOSTER = [
   { nr: 41, lat: 60.72479028725314, lng: 9.036607137866255, name: "ELGHYTTA", omrade: "Hytta" },
   { nr: 43, lat: 60.7173709382572, lng: 9.011563224538964, name: "Hyttemyr", omrade: "Søndre" },
   { nr: 44, lat: 60.72143108972976, lng: 9.040837592808659, name: "Svingen", omrade: "Søndre" },
-  { nr: 45, lat: 60.72886445067475, lng: 9.028918316432812, name: "Hogsten N.", omrade: "Søndre" },
-  { nr: 46, lat: 60.72768222829885, lng: 9.029903798844312, name: "Hogsten S.", omrade: "Søndre" },
+  { nr: 45, lat: 60.72886445067475, lng: 9.028918316432812, name: "Hogsten N.", omrade: "Strupen" },
+  { nr: 46, lat: 60.72768222829885, lng: 9.029903798844312, name: "Hogsten S.", omrade: "Strupen" },
   { nr: 48, lat: 60.733341760971626, lng: 9.018617135356457, name: "Alex post", omrade: "Strupen" },
   { nr: 49, lat: 60.71907769430199, lng: 9.028856745705884, name: "Vei ved toreberg", omrade: "Søndre" },
   {
