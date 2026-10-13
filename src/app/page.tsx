@@ -36,7 +36,7 @@ import ImprovedMorningTab from './ImprovedMorningTab';
 // Enkel Tab-komponent
 function Tabs({ tabs, current, onChange }: { tabs: string[]; current: string; onChange: (tab: string) => void }) {
   return (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+    <div style={{ display: 'flex', gap: 8, marginBottom: 24, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
       {tabs.map((tab) => (
         <button
           key={tab}
@@ -49,6 +49,8 @@ function Tabs({ tabs, current, onChange }: { tabs: string[]; current: string; on
             background: current === tab ? '#e0eaff' : '#f4f4f4',
             border: current === tab ? '2px solid #4a90e2' : '1px solid #ccc',
             fontWeight: current === tab ? 600 : 400,
+            whiteSpace: 'nowrap',
+            flex: '0 0 auto',
           }}
         >
           {tab}

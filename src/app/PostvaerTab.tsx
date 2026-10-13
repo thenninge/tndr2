@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { ELGPOSTER } from "./elgposter";
+import PostVelger from "./PostVelger";
 import { WindArrow, weatherIcon, windDirectionText } from "./utils/weatherUtils";
 
 type Hour = { time: string; temp: number; windSpeed: number; windDir: number; weatherCode: number; precipitation: number };
@@ -17,7 +18,6 @@ export default function PostvaerTab() {
       localStorage.setItem("postvaer_selectedPosts", JSON.stringify(selectedPosts));
     }
   }, [selectedPosts]);
-  const [expanderOpen, setExpanderOpen] = useState(false);
   const [timeOption, setTimeOption] = useState('6timer');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
@@ -35,16 +35,6 @@ export default function PostvaerTab() {
   }, [weatherData]);
   const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'omrade'|'alfabetisk'>('alfabetisk');
-
-  // Sorter ELGPOSTER alfabetisk for visning
-  const sortedIdx = ELGPOSTER
-    .map((p, i) => ({ name: p.name, idx: i }))
-    .sort((a, b) => sortBy === 'alfabetisk' ? a.name.localeCompare(b.name) : a.idx - b.idx)
-    .map(x => x.idx);
-
-  function handleToggle(idx: number) {
-    setSelectedPosts((sel: boolean[]) => sel.map((v, i) => i === idx ? !v : v));
-  }
 
   async function fetchWeatherForPosts() {
     setLoading(true);
@@ -86,8 +76,6 @@ export default function PostvaerTab() {
     setLoading(false);
   }
 
-  const numSelected = selectedPosts.filter(Boolean).length;
-
   // Sorteringslogikk
   const sortedWeatherData = [...weatherData];
   if (sortBy === 'nord-sor') {
@@ -109,6 +97,8 @@ export default function PostvaerTab() {
       if (areaA !== areaB) return areaA - areaB;
       return a.post.nr - b.post.nr;
     });
+  } else if (sortBy === 'alfabetisk') {
+    sortedWeatherData.sort((a, b) => a.post.name.localeCompare(b.post.name, 'nb', { sensitivity: 'base' }));
   }
 
   function handleClearSelection() {
@@ -123,10 +113,15 @@ export default function PostvaerTab() {
   return (
     <section>
       <h2 style={{ fontSize: 20, marginBottom: 8 }}>Postvær</h2>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-        <button onClick={() => setExpanderOpen(v => !v)} style={{ padding: '7px 16px', borderRadius: 8, background: '#f4f8ff', border: '1px solid #b2d8b2', fontSize: 16, cursor: 'pointer', marginBottom: 8 }}>
-          Velg poster ({numSelected} valgt{numSelected === 1 ? '' : 'e'}) {expanderOpen ? '▲' : '▼'}
-        </button>
+      <div style={{ marginBottom: 16 }}>
+        <PostVelger
+          posts={ELGPOSTER.map((p, idx) => ({ ...p, idx }))}
+          selectedIds={selectedPosts.map((on: boolean, idx: number) => on ? idx : -1).filter((idx: number) => idx >= 0)}
+          onConfirm={(ids) => setSelectedPosts(ELGPOSTER.map((_, i) => ids.includes(i)))}
+          triggerLabel="Poster"
+        />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         <div>
           <b>Sorter etter:</b>
           <select value={sortBy} onChange={e => setSortBy(e.target.value as 'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'omrade'|'alfabetisk')} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #bbb', fontSize: 15 }}>
@@ -140,18 +135,6 @@ export default function PostvaerTab() {
         </div>
         <button onClick={handleClearSelection} style={{ marginLeft: 12, padding: '8px 18px', borderRadius: 8, background: '#ffe0e0', border: '1px solid #d8b2b2', fontSize: 16, cursor: 'pointer' }}>Slett valg</button>
       </div>
-      {expanderOpen && (
-        <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 500, marginTop: 8, marginBottom: 8, background: '#f8faff', border: '1px solid #dde', borderRadius: 8, boxShadow: '0 2px 8px #0001', paddingLeft: 12, paddingRight: 12 }}>
-          {sortedIdx.map(idx => (
-            <li key={ELGPOSTER[idx].name} style={{ marginBottom: 4 }}>
-              <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                <input type="checkbox" checked={selectedPosts[idx]} onChange={() => handleToggle(idx)} style={{ marginRight: 7 }} />
-                {ELGPOSTER[idx].name}
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
       <div style={{ marginBottom: 16 }}>
         <b>Velg tidsrom:</b>
         <div style={{ display: 'flex', gap: 18, marginTop: 6, marginBottom: 6 }}>

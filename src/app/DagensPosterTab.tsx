@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ELGPOSTER } from "./elgposter";
 import { ELGJEGERE } from "./elgjegere";
+import PostVelger from "./PostVelger";
 
 export default function DagensPosterTab() {
   const [fordeling, setFordeling] = useState<{ postIdx: number; jeger: string }[]>([]);
@@ -8,7 +9,6 @@ export default function DagensPosterTab() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [sortBy, setSortBy] = useState<'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta'>('alfabetisk');
   useEffect(() => {
     setLoading(true);
     fetch("/api/dagensposter")
@@ -47,9 +47,7 @@ export default function DagensPosterTab() {
   const [showAddFirst, setShowAddFirst] = useState(false);
   const [selectedPosts, setSelectedPosts] = useState<number[]>([]); // indexer til valgte poster
   const [postJeger, setPostJeger] = useState<{ [postIdx: number]: string }>({});
-  function handleTogglePost(idx: number) {
-    setSelectedPosts((prev: number[]) => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
-  }
+  const posterValg = ELGPOSTER.map((p, idx) => ({ ...p, idx }));
   function handleSetJeger(idx: number, jeger: string) {
     setPostJeger(j => ({ ...j, [idx]: jeger }));
   }
@@ -71,7 +69,6 @@ export default function DagensPosterTab() {
   const [showAddRow, setShowAddRow] = useState(false);
   const [addPostIdx, setAddPostIdx] = useState('');
   const [addJeger, setAddJeger] = useState('');
-  const [addSortBy, setAddSortBy] = useState<'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta'>('alfabetisk');
   async function handleAddRow(e: React.FormEvent) {
     e.preventDefault();
     if (!addPostIdx || !addJeger) return;
@@ -106,94 +103,21 @@ export default function DagensPosterTab() {
       </div>
       {showAddFirst && fordeling.length === 0 && (
         <form onSubmit={handleSaveNewList} style={{ marginBottom: 18 }}>
-          <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <b>1. Velg poster:</b>
-            <label style={{ fontWeight: 400, fontSize: 15 }}>
-              Sorter postliste:
-              <select value={sortBy} onChange={e => setSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ marginLeft: 6, fontSize: 15, padding: 3, borderRadius: 5 }}>
-                <option value="omrade">Område-sortering</option>
-                <option value="nord-sor">Nord → Sør</option>
-                <option value="sor-nord">Sør → Nord</option>
-                <option value="ost-vest">Øst → Vest</option>
-                <option value="vest-ost">Vest → Øst</option>
-                <option value="alfabetisk">Alfabetisk</option>
-                <option value="nummerert">Nummerert</option>
-                <option value="hytta">Avstand fra hytta</option>
-              </select>
-            </label>
-          </div>
-          <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start' }}>
-            <div style={{ flex: 1 }}>
-              <ul style={{ listStyle: 'none', padding: 0, columns: 2, maxWidth: 500, marginBottom: 12 }}>
-                {(() => {
-                  let arr = ELGPOSTER.map((p, idx) => ({ ...p, idx }));
-                  if (sortBy === 'omrade') {
-                    arr = arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || (a.name || '').localeCompare(b.name || ''));
-                    const grouped: Record<string, typeof arr> = {};
-                    arr.forEach(p => {
-                      if (!grouped[p.omrade]) grouped[p.omrade] = [];
-                      grouped[p.omrade].push(p);
-                    });
-                    return Object.entries(grouped).flatMap(([omrade, posts]) => [
-                      <li key={omrade} style={{ margin: '8px 0 2px 0', fontWeight: 700, fontSize: 15, color: '#444' }}>{omrade}</li>,
-                      ...posts.map(p => (
-                        <li key={p.nr+(p.name || '')} style={{ marginBottom: 4, marginLeft: 8 }}>
-                          <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                            <input type="checkbox" checked={selectedPosts.includes(p.idx)} onChange={() => handleTogglePost(p.idx)} style={{ marginRight: 7 }} />
-                            {p.name || ''}
-                          </label>
-                        </li>
-                      ))
-                    ]);
-                  }
-                  switch (sortBy) {
-                    case 'nord-sor':
-                      arr = arr.sort((a, b) => b.lat - a.lat); break;
-                    case 'sor-nord':
-                      arr = arr.sort((a, b) => a.lat - b.lat); break;
-                    case 'ost-vest':
-                      arr = arr.sort((a, b) => b.lng - a.lng); break;
-                    case 'vest-ost':
-                      arr = arr.sort((a, b) => a.lng - b.lng); break;
-                    case 'alfabetisk':
-                      arr = arr.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break;
-                    case 'nummerert':
-                      arr = arr.sort((a, b) => a.nr - b.nr); break;
-                    case 'hytta':
-                      arr = arr.sort((a, b) => {
-                        const distA = Math.sqrt(Math.pow(a.lat - 60.72479028725314, 2) + Math.pow(a.lng - 9.036607137866255, 2));
-                        const distB = Math.sqrt(Math.pow(b.lat - 60.72479028725314, 2) + Math.pow(b.lng - 9.036607137866255, 2));
-                        return distA - distB;
-                      }); break;
-                  }
-                  return arr.map(p => (
-                    <li key={p.nr+(p.name || '')} style={{ marginBottom: 4 }}>
-                      <label style={{ cursor: 'pointer', fontSize: 16 }}>
-                        <input type="checkbox" checked={selectedPosts.includes(p.idx)} onChange={() => handleTogglePost(p.idx)} style={{ marginRight: 7 }} />
-                        {p.name || ''}
-                      </label>
-                    </li>
-                  ));
-                })()}
-              </ul>
-            </div>
-            <div style={{ minWidth: 180, maxWidth: 260, background: '#f6faff', border: '2px solid #b2d8f6', borderRadius: 10, padding: '10px 16px', fontSize: 18, fontWeight: 500, color: '#235', boxShadow: '0 2px 8px #0001' }}>
-              <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 6, color: '#1a4b7a' }}>Valgte poster:</div>
-              {selectedPosts.length === 0 ? <div style={{ color: '#888', fontSize: 16 }}>Ingen valgt</div> :
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {selectedPosts.map(idx => <li key={idx} style={{ marginBottom: 2 }}>{ELGPOSTER[idx].name || ''}</li>)}
-                </ul>
-              }
-            </div>
-          </div>
+          <div style={{ marginBottom: 10 }}><b>1. Velg poster</b></div>
+          <PostVelger
+            posts={posterValg}
+            selectedIds={selectedPosts}
+            onConfirm={setSelectedPosts}
+            triggerLabel="Poster i dag"
+          />
           {selectedPosts.length > 0 && (
             <>
-              <div style={{ marginBottom: 10 }}><b>2. Velg jeger for hver post:</b></div>
-              <ul style={{ listStyle: 'none', padding: 0, maxWidth: 500 }}>
+              <div style={{ margin: '16px 0 10px' }}><b>2. Velg jeger for hver post</b></div>
+              <ul className="dagens-assign">
                 {selectedPosts.map(idx => (
-                  <li key={idx} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ minWidth: 120 }}>{ELGPOSTER[idx].name || ''}</span>
-                    <select value={postJeger[idx] || ''} onChange={e => handleSetJeger(idx, e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6 }} required>
+                  <li key={idx}>
+                    <span style={{ fontWeight: 700 }}>{ELGPOSTER[idx].name || ''}</span>
+                    <select value={postJeger[idx] || ''} onChange={e => handleSetJeger(idx, e.target.value)} required>
                       <option value="">Velg jeger</option>
                       {ELGJEGERE.filter(j => !Object.entries(postJeger).some(([k, v]) => Number(k) !== idx && v === j.navn) || postJeger[idx] === j.navn).map(j => (
                         <option key={j.navn} value={j.navn}>{j.navn}</option>
@@ -204,63 +128,33 @@ export default function DagensPosterTab() {
               </ul>
             </>
           )}
-          <div style={{ marginTop: 12 }}>
-            <button type="submit" disabled={selectedPosts.length === 0 || selectedPosts.some(idx => !postJeger[idx])} style={{ padding: '7px 16px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 15, cursor: selectedPosts.length === 0 || selectedPosts.some(idx => !postJeger[idx]) ? 'not-allowed' : 'pointer', marginRight: 8 }}>Lagre</button>
-            <button type="button" onClick={() => { setShowAddFirst(false); setSelectedPosts([]); setPostJeger({}); }} style={{ padding: '7px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Avbryt</button>
+          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            <button type="submit" disabled={selectedPosts.length === 0 || selectedPosts.some(idx => !postJeger[idx])} style={{ padding: '12px 16px', borderRadius: 8, background: '#e0ffe0', border: '1px solid #b2d8b2', fontSize: 16, fontWeight: 700, cursor: selectedPosts.length === 0 || selectedPosts.some(idx => !postJeger[idx]) ? 'not-allowed' : 'pointer' }}>Lagre</button>
+            <button type="button" onClick={() => { setShowAddFirst(false); setSelectedPosts([]); setPostJeger({}); }} style={{ padding: '12px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 16, cursor: 'pointer' }}>Avbryt</button>
           </div>
         </form>
       )}
       {showAddRow && fordeling.length > 0 && (
-        <form onSubmit={handleAddRow} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 18 }}>
-          <select value={addPostIdx} onChange={e => setAddPostIdx(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6 }} required>
-            <option value="">Velg post</option>
-            {(() => {
-              let arr = ELGPOSTER.map((p, idx) => ({ ...p, idx })).filter(p => !fordeling.some(f => f.postIdx === p.idx) || addPostIdx === String(p.idx));
-              switch (addSortBy) {
-                case 'omrade':
-                  arr = arr.sort((a, b) => a.omrade.localeCompare(b.omrade) || (a.name || '').localeCompare(b.name || '')); break;
-                case 'nord-sor':
-                  arr = arr.sort((a, b) => b.lat - a.lat); break;
-                case 'sor-nord':
-                  arr = arr.sort((a, b) => a.lat - b.lat); break;
-                case 'ost-vest':
-                  arr = arr.sort((a, b) => b.lng - a.lng); break;
-                case 'vest-ost':
-                  arr = arr.sort((a, b) => a.lng - b.lng); break;
-                case 'alfabetisk':
-                  arr = arr.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break;
-                case 'nummerert':
-                  arr = arr.sort((a, b) => a.nr - b.nr); break;
-                case 'hytta':
-                  arr = arr.sort((a, b) => {
-                    const distA = Math.sqrt(Math.pow(a.lat - 60.72479028725314, 2) + Math.pow(a.lng - 9.036607137866255, 2));
-                    const distB = Math.sqrt(Math.pow(b.lat - 60.72479028725314, 2) + Math.pow(b.lng - 9.036607137866255, 2));
-                    return distA - distB;
-                  }); break;
-              }
-              return arr.map(p => (
-                <option key={p.nr+(p.name || '')} value={p.idx}>{p.name || ''}</option>
-              ));
-            })()}
-          </select>
-          <select value={addJeger} onChange={e => setAddJeger(e.target.value)} style={{ fontSize: 16, padding: 6, borderRadius: 6 }} required>
+        <form onSubmit={handleAddRow} className="dagens-add">
+          <PostVelger
+            posts={posterValg}
+            selectedIds={addPostIdx === '' ? [] : [Number(addPostIdx)]}
+            onConfirm={(ids) => setAddPostIdx(ids[0] != null ? String(ids[0]) : '')}
+            lockedIds={fordeling.map(f => f.postIdx)}
+            lockedLabel="Allerede med"
+            selectionMode="single"
+            triggerLabel="Velg post"
+          />
+          <select value={addJeger} onChange={e => setAddJeger(e.target.value)} required>
             <option value="">Velg jeger</option>
             {ELGJEGERE.filter(j => !fordeling.some(f => f.jeger === j.navn) || addJeger === j.navn).map(j => (
               <option key={j.navn} value={j.navn}>{j.navn}</option>
             ))}
           </select>
-          <select value={addSortBy} onChange={e => setAddSortBy(e.target.value as 'omrade'|'nord-sor'|'sor-nord'|'ost-vest'|'vest-ost'|'alfabetisk'|'nummerert'|'hytta')} style={{ fontSize: 15, padding: 3, borderRadius: 5, marginLeft: 8 }}>
-            <option value="omrade">Område-sortering</option>
-            <option value="nord-sor">Nord → Sør</option>
-            <option value="sor-nord">Sør → Nord</option>
-            <option value="ost-vest">Øst → Vest</option>
-            <option value="vest-ost">Vest → Øst</option>
-            <option value="alfabetisk">Alfabetisk</option>
-            <option value="nummerert">Nummerert</option>
-            <option value="hytta">Avstand fra hytta</option>
-          </select>
-          <button type="submit" style={{ padding: '7px 16px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 15, cursor: 'pointer' }}>Lagre</button>
-          <button type="button" onClick={() => { setShowAddRow(false); setAddPostIdx(''); setAddJeger(''); }} style={{ padding: '7px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 15, cursor: 'pointer' }}>Avbryt</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" disabled={!addPostIdx || !addJeger} style={{ padding: '12px 16px', borderRadius: 8, background: '#e0eaff', border: '1px solid #b2d8b2', fontSize: 16, fontWeight: 700, cursor: !addPostIdx || !addJeger ? 'not-allowed' : 'pointer' }}>Lagre</button>
+            <button type="button" onClick={() => { setShowAddRow(false); setAddPostIdx(''); setAddJeger(''); }} style={{ padding: '12px 16px', borderRadius: 8, background: '#eee', border: '1px solid #bbb', fontSize: 16, cursor: 'pointer' }}>Avbryt</button>
+          </div>
         </form>
       )}
       {loading ? <div>Laster...</div> : (
